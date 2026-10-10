@@ -6,8 +6,8 @@
 #                for every running chat/task, together with status elements named "Running";
 #                the mode switcher's radio buttons read "<mode>, working" (e.g. "Chat and Cowork,
 #                working") for a mode that has running work but isn't the one on screen, so cloud
-#                Cowork tasks and chats are seen whichever tab is open. Hiding the sidebar removes
-#                both the list and the switcher; a "Show sidebar" button then reports sidebarHidden.
+#                Cowork tasks and chats are seen whichever tab is open (best effort: a hidden sidebar
+#                removes both; Quiet AI's dependable sources are Claude Code and Codex themselves).
 #                Minimized windows still expose all of this.
 #   Codex app  : button "Stop" while working; status elements named "Working" per busy task;
 #                "Running <command>" items for tool calls (counted as working, never as chat titles).
@@ -30,7 +30,7 @@ function Clip([string]$s) { if ($s.Length -gt 80) { $s.Substring(0, 80) } else {
 while ($true) {
   $started = [Environment]::TickCount
   $result = [ordered]@{
-    claude = [ordered]@{ windows = 0; stops = @(); running = @(); working = 0; tabs = @(); sidebarHidden = $false }
+    claude = [ordered]@{ windows = 0; stops = @(); running = @(); working = 0; tabs = @() }
     codex  = [ordered]@{ windows = 0; stops = @(); running = @(); working = 0; tabs = @() }
     ms = 0 }
   $owner = @{}
@@ -58,9 +58,6 @@ while ($true) {
               if ($name -match '^\s*(.{1,40}?),\s*working\s*$' -and $r.tabs -notcontains $Matches[1].Trim()) { $r.tabs += $Matches[1].Trim() }
               continue
             }
-            # With Claude's sidebar hidden, its running list and mode badges are gone too, so work
-            # that isn't on screen can't be seen. Reported so the app can treat Claude as unverified.
-            if ($key -eq 'claude' -and $name -match '^\s*Show sidebar\s*$') { $r.sidebarHidden = $true; continue }
             if (-not $e.Current.IsEnabled) { continue }
             if ($name -match '^\s*(stop|interrupt)\b' -and $name -notmatch '(?i)dictat|record|listen|speak|read aloud') { $r.stops += (Clip $name) }
             elseif ($name -match '^\s*Running\s+(.+)$') {

@@ -424,9 +424,7 @@ function startWindowWatcher(){
           // tabs: app modes not on screen whose switcher reads "<mode>, working" (Claude: "Chat and Cowork", "Code").
           const w={windows:v.windows|0,stops:arr(v.stops),running:key==='claude'?arr(v.running):[],working:(v.working|0)+(key==='claude'?0:arr(v.running).length),tabs:arr(v.tabs)};
           w.busy=w.stops.length>0||w.running.length>0||w.working>0||w.tabs.length>0;
-          w.sidebarHidden=v.sidebarHidden===true;
           windows[key]=w;
-          if(w.sidebarHidden)showClaudeSidebar();
           if(w.busy&&!windowSince[key])windowSince[key]=now;if(!w.busy)windowSince[key]=0;
           if(!w.busy&&w.windows>0){if(!windowQuietSince[key])windowQuietSince[key]=now;}else windowQuietSince[key]=0;
           for(const t of w.running)if(!titleSince[key+':'+t])titleSince[key+':'+t]=now;
@@ -446,15 +444,6 @@ function startWindowWatcher(){
   child.on('error',ex=>{windows.error='Window watcher stopped: '+ex.message;});
 }
 let windowWatcher=null,quitting=false;
-// With Claude's sidebar hidden, chats and Cowork tasks that aren't on screen can't be seen. While a
-// plan is armed, show the sidebar (same as clicking "Show sidebar"); otherwise only report it.
-let lastSidebarFix=0;
-function showClaudeSidebar(){
-  if(!active()||plan.phase==='executing'||!settings.watchWindows||!settings.claudeEnabled||process.platform!=='win32'||Date.now()-lastSidebarFix<30000)return;
-  lastSidebarFix=Date.now();
-  const shell=path.join(process.env.SystemRoot||'C:\\Windows','System32','WindowsPowerShell','v1.0','powershell.exe');
-  execFile(shell,['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',path.join(__dirname,'show-claude-sidebar.ps1')],{windowsHide:true,timeout:15000},(err,stdout)=>activity('claude-sidebar-shown',{ok:!err&&String(stdout).trim()!=='0'}));
-}
 const {performance}=require('node:perf_hooks');
 const watcherStarted=performance.now();
 function windowsFresh(){return windows.running&&windows.at>0&&performance.now()-windows.at<12000;}
@@ -484,10 +473,6 @@ function applyWindows(snap){
       const drop=new Set(q.work.map(x=>x.key));
       q.work=[];q.connected=true;q.viaWindowOnly=true;q.uncertain=0;
       snap.work=snap.work.filter(x=>!drop.has(x.key));snap.uncertain=Math.max(0,(snap.uncertain||0)-drop.size);
-    }
-    if(w&&w.sidebarHidden){
-      const item={key:Name+':sidebar',provider:Name,session:'app-window',label:'Claude’s sidebar is hidden',status:'Uncertain',reason:'With the sidebar hidden, Claude chats and Cowork tasks that aren’t on screen can’t be seen. Show the sidebar in Claude; while a plan is armed Quiet AI shows it itself.',lastEventUtc:new Date().toISOString()};
-      q.work.push(item);snap.work.push(item);q.uncertain=(q.uncertain||0)+1;snap.uncertain=(snap.uncertain||0)+1;
     }
     if(w&&w.busy){
       const seen=w.stops[0]||(w.running.length?'Running':w.tabs.length?w.tabs[0]+', working':'Working');
