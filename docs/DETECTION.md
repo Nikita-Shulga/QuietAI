@@ -72,9 +72,18 @@ The installer registers synchronous command hooks in the configured Claude user 
 
 At a root `Stop`, `background_tasks` and `session_crons` must both be arrays. Nonterminal background tasks remain active; registered future wakeups remain scheduled. An empty pair of arrays verifies that the reported registries are clear. Missing registries, missing required IDs, invalid bridge records, disabled hooks, and collector failure markers prevent automatic completion. Root prompts are grouped into the running-chat count; child agents and background tasks contribute to the separate background count.
 
+### Live session status (second signal)
+
+Claude Code keeps one small file per running session in `<Claude home>/sessions/<pid>.json` with the session ID, its name and a status Claude Code updates as it works: `busy`, `waiting` (a permission prompt or a question for the user, with `waitingFor`), `idle` or `shell`. The monitor reads these every scan:
+
+- A session whose status is `busy` or `waiting` counts as a running chat, even if no hook event says so — this covers missed events and sessions started before the hook was connected. `waiting` keeps the plan waiting, because the work can't finish until someone answers.
+- A file counts only while its process is alive; on Windows the process creation time must also match the file's `procStart`, so a reused process ID is ignored. Files left behind by a crash never hold a plan.
+- The hook stays the primary signal (it also sees subagents, background tasks and scheduled wakeups). The live status only adds work; it never clears work the hook still reports.
+- Chat names come from the same files (and `projects/<project>/<session>/custom-title.json`), so a chat tracked by the hook and shown in the Claude app window is listed once, under its real title.
+
 ### Coverage and limitations
 
-- Install hooks **before** using the monitored sessions. Restart/resume all sessions after setup. An earlier session that never emits our bridge events is invisible to this app.
+- Install hooks **before** using the monitored sessions. Restart/resume all sessions after setup. A session that started earlier is still seen through its live status (above), but its subagents and background tasks are only visible once it emits hook events.
 - Recent Claude hook payloads are required. Older payloads without prompt IDs or background registries remain uncertain; there is no fallback that treats silence as done.
 - User interruption may not emit `Stop`. A missing terminal event leaves work outstanding until session closure or explicit review.
 - Other Stop hooks can block completion and make Claude continue. Subsequent observed tool/prompt events reactivate the work and reset idle confirmation. Unobserved continuation cannot be guaranteed detectable.
@@ -101,4 +110,4 @@ An exclusion changes the completion decision deliberately. It does not create ev
 
 ## Data retained
 
-The Codex reader retains offsets, IDs, statuses, timestamps, and local paths, not prompt/response content. The Claude collector retains schema version, event, session/prompt/agent IDs, source, working directory, timestamp, background ID/type/status, and scheduled IDs. It drops prompt text, responses, tool inputs, commands, and task descriptions. No network service or account credential is used.
+The Codex reader retains offsets, IDs, statuses, timestamps, and local paths, not prompt/response content. The Claude collector retains schema version, event, session/prompt/agent IDs, source, working directory, timestamp, background ID/type/status, and scheduled IDs. It drops prompt text, responses, tool inputs, commands, and task descriptions. The live-status reader keeps nothing; it reads session IDs, names, statuses and process IDs on each scan. Detection uses no network service or account credential (the only network use in the app is the update check, see RELEASING.md).

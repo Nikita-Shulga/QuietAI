@@ -30,6 +30,7 @@ public sealed class MonitorEngine
     }
 
     private string _lastCodexVisible = "";
+    private string _lastClaudeLive = "";
     private ProviderSnapshot ScanCodex(MonitorOptions options, CancellationToken token)
     {
         if (!options.CodexEnabled) return new("Codex", false, false, [], "Disabled in Connections.");
@@ -106,7 +107,9 @@ public sealed class MonitorEngine
         if (!Directory.Exists(folder))
         {
             Problem(provider == "Codex" ? "The sessions folder is missing. Select the correct folder in Connections." : "No Claude events yet. Install the bridge and start or resume Claude Code.");
-            return new(provider, true, false, work, work[0].Reason);
+            var reason = work[0].Reason;
+            if (provider == "Claude") work = WithClaudeLiveSessions(work, options);
+            return new(provider, true, false, work, reason);
         }
         var observed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         try
@@ -143,11 +146,37 @@ public sealed class MonitorEngine
             }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { Problem("Could not scan the configured folder: " + ex.Message); }
+        if (provider == "Claude") work = WithClaudeLiveSessions(work, options);
         var connected = provider == "Codex" ? !work.Any(item => item.Key == "Codex:connection") && _logs.Values.Any(log => log.Provider == "Codex" && Within(log.Path, folder) && log.SeenLifecycle)
             : !work.Any(item => item.Key == "Claude:connection") && _logs.Values.Any(log => log.Provider == "Claude" && Within(log.Path, folder) && log.SessionConnected);
         if (provider == "Claude" && !connected && work.Count == 0) Problem("Waiting for the first real Claude hook event. Restart or resume Claude Code after setup.");
         if (provider == "Codex" && !connected && work.Count == 0) Problem("No supported Codex turn events found. Check the sessions folder or run a Codex prompt.");
         return new(provider, true, connected, work, connected ? "Connected" : work.FirstOrDefault()?.Reason ?? "Not connected");
+    }
+
+    // Second Claude signal: sessions Claude Code itself reports as busy or waiting, even if no hook
+    // event says so (missed events, or sessions started before the hook was connected). Also gives
+    // every Claude item its chat name, so the app-window row for the same chat isn't listed twice.
+    private List<WorkItem> WithClaudeLiveSessions(List<WorkItem> work, MonitorOptions options)
+    {
+        var live = ClaudeLiveSessions.Read(options.ClaudeHome);
+        var hooked = work.Where(item => item.Status == WorkStatus.Running).Select(item => item.Session).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var session in live.Where(ClaudeLiveSessions.Working).Where(s => !hooked.Contains(s.Id)))
+        {
+            var key = "Claude:live:" + session.Id;
+            if (options.ExcludedWork.Contains(key)) continue;
+            var waiting = session.Status == "waiting";
+            work.Add(new(key, "Claude", session.Id, waiting ? "Claude Code · waiting for you" : "Claude Code · working", WorkStatus.Running,
+                waiting ? "Claude Code is waiting (" + (session.WaitingFor.Length > 0 ? session.WaitingFor : "input") + ") before it can finish." : "Claude Code reports this session as busy.", session.UpdatedUtc)
+                { IsBackground = false });
+        }
+        var fingerprint = string.Join("\n", live.Where(ClaudeLiveSessions.Working).Select(s => s.Id + ":" + s.Status).Order());
+        if (_lastClaudeLive != fingerprint) { _lastClaudeLive = fingerprint; _revision++; }
+        if (work.Count == 0) return work;
+        var names = new Dictionary<string, string>(ClaudeChatNames.Read(options.ClaudeHome, work.Select(item => item.Session).Distinct()), StringComparer.OrdinalIgnoreCase);
+        foreach (var session in live.Where(s => s.Name.Length > 0)) names[session.Id] = session.Name;
+        return work.Select(item => names.TryGetValue(item.Session, out var name) ? item with { ChatTitle = name }
+            : item.ChatTitle.Length > 0 ? item : item with { ChatTitle = "Claude chat " + (item.Session.Length > 10 ? item.Session[..10] : item.Session) }).ToList();
     }
 
     public void SaveCache()

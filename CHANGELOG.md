@@ -4,6 +4,8 @@
 
 - Added in-app updates: Settings → About → Updates checks this project's GitHub Releases (quietly at start and every 6 hours, or on a click). Update now downloads this computer's package, checks it against the release's SHA256SUMS.txt, and restarts Quiet AI into the new version. Settings are kept. Updating is refused while a plan is armed. If the app's folder isn't writable, the download page opens instead.
 - Pushing a version tag now publishes a GitHub Release with the Windows and Mac ZIPs and SHA256SUMS.txt.
+- Claude Code tracking has a second, independent signal: the live status Claude Code keeps for each running session (busy / waiting / idle). A session that's busy or waiting for permission keeps the plan waiting even if a hook event was missed or the session started before the hook was connected. Files from crashed sessions are ignored.
+- Claude chats now show their real names (as in the Claude app) instead of “Claude chat <id>”, and a chat seen both through the hook and in the Claude app window is no longer counted twice.
 
 ## Quiet AI 4.1.0
 
