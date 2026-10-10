@@ -114,9 +114,8 @@ def main():
     shutil.copytree(agent,app_dir/'agent')
     shutil.copyfile(repo/'hooks/ClaudeHook.ps1',app_dir/'agent/ClaudeHook.ps1')
     shutil.copyfile(repo/'LICENSE',folder/'LICENSE-QuietAI.txt')
-    for name in ('README.md','START-HERE.txt'):
-        if (repo/name).exists(): shutil.copyfile(repo/name,folder/name)
-    shutil.copytree(repo/'docs',folder/'docs')
+    # Users get a short quick start; the full docs live on GitHub (linked from it).
+    shutil.copyfile(repo/'START-HERE.txt',folder/'START-HERE.txt')
     notices=folder/'licenses';notices.mkdir()
     packages=Path(os.environ.get('NUGET_PACKAGES',Path.home()/'.nuget/packages'))
     deps=json.loads((agent/'QuietAI.Agent.deps.json').read_text())

@@ -9,7 +9,7 @@ The desktop UI lives in `desktop/` and has no npm dependencies.
 | `renderer.js` | Sandboxed renderer. Renders the `quiet:state` object, draws the activity strip on a `<canvas>`, opens the custom menus, handles Enter/Esc. It never touches Node or the filesystem. |
 | `main.js` | Trusted main process: settings, scanning, the power plan, theme, provider icons, OS integration. |
 | `fonts/` | Inter (SIL OFL, see `LICENSE-Inter.txt`), subset to Latin, Cyrillic and Greek. |
-| `icon.*` | App icons rendered by `scripts/icons.py` (sunset mark). `icon.svg` is the same mark as a vector. |
+| `icon.*` | App icons rendered by `scripts/icons.py` (sunset mark). The same mark is drawn inline as SVG in `index.html`. |
 
 ## Layout
 

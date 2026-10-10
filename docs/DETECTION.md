@@ -1,6 +1,6 @@
 # Detection specification
 
-This document describes Quiet AI 4.0.0 for Windows and macOS. Detection uses live local Codex writers and recorded lifecycle signals from the selected sources. It is not a promise to discover every running agent on a machine.
+This document describes how Quiet AI detects running work on Windows and macOS. Detection uses live local Codex writers and recorded lifecycle signals from the selected sources. It is not a promise to discover every running agent on a machine.
 
 ## Combined completion rule
 
