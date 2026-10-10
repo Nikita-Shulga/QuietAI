@@ -421,14 +421,19 @@ function startWindowWatcher(){
         for(const key of ['claude','codex']){
           const v=r[key]||{};const arr=x=>Array.isArray(x)?x.map(String):(x?[String(x)]:[]);
           // Only the Claude sidebar names chats ("Running <title>"); Codex "Running …" items are commands.
-          const w={windows:v.windows|0,stops:arr(v.stops),running:key==='claude'?arr(v.running):[],working:(v.working|0)+(key==='claude'?0:arr(v.running).length)};
-          w.busy=w.stops.length>0||w.running.length>0||w.working>0;
+          // tabs: app modes not on screen whose switcher reads "<mode>, working" (Claude: "Chat and Cowork", "Code").
+          const w={windows:v.windows|0,stops:arr(v.stops),running:key==='claude'?arr(v.running):[],working:(v.working|0)+(key==='claude'?0:arr(v.running).length),tabs:arr(v.tabs)};
+          w.busy=w.stops.length>0||w.running.length>0||w.working>0||w.tabs.length>0;
           windows[key]=w;
           if(w.busy&&!windowSince[key])windowSince[key]=now;if(!w.busy)windowSince[key]=0;
           if(!w.busy&&w.windows>0){if(!windowQuietSince[key])windowQuietSince[key]=now;}else windowQuietSince[key]=0;
           for(const t of w.running)if(!titleSince[key+':'+t])titleSince[key+':'+t]=now;
+          for(const t of w.tabs)if(!titleSince[key+':tab:'+t])titleSince[key+':tab:'+t]=now;
           // A chat that stops showing "Running" starts a fresh timer if it runs again later.
-          for(const k of Object.keys(titleSince))if(k.startsWith(key+':')&&!w.running.includes(k.slice(key.length+1)))delete titleSince[k];
+          for(const k of Object.keys(titleSince)){
+            if(!k.startsWith(key+':'))continue;const rest=k.slice(key.length+1);
+            if(rest.startsWith('tab:')?!w.tabs.includes(rest.slice(4)):!w.running.includes(rest))delete titleSince[k];
+          }
         }
         windows.at=performance.now();windows.error='';
       }catch{}
@@ -470,12 +475,19 @@ function applyWindows(snap){
       snap.work=snap.work.filter(x=>!drop.has(x.key));snap.uncertain=Math.max(0,(snap.uncertain||0)-drop.size);
     }
     if(w&&w.busy){
-      const seen=w.stops[0]||(w.running.length?'Running':'Working');
+      const seen=w.stops[0]||(w.running.length?'Running':w.tabs.length?w.tabs[0]+', working':'Working');
       const item={key:Name+':window',provider:Name,session:'app-window',label:app+' · working',status:'Running',reason:'The '+app+' shows “'+seen+'”.',lastEventUtc:new Date().toISOString()};
       q.work.push(item);snap.work.push(item);
       // Rows: one per named running chat from the Claude sidebar; otherwise one per busy task.
       const known=new Set((q.chats||[]).map(c=>String(c.title).toLowerCase()));
       let rows=w.running.filter(t=>!known.has(t.toLowerCase())).map(t=>({provider:Name,session:'app:'+t,title:t,promptCount:1,startedUtc:new Date(titleSince[key+':'+t]||windowSince[key]||Date.now()).toISOString(),fromWindow:true}));
+      // A mode that isn't on screen but has running work (e.g. a cloud Cowork task while the Code tab
+      // is open). Its chats aren't listed, so it gets one row. A busy Code tab is skipped when Claude
+      // Code sessions are already listed from the hook/live status, so they aren't counted twice.
+      for(const tab of w.tabs){
+        if(/^code\b/i.test(tab)&&(q.chats||[]).some(c=>!c.fromWindow))continue;
+        rows.push({provider:Name,session:'app-tab:'+tab,title:app+' · '+tab+' working',promptCount:1,startedUtc:new Date(titleSince[key+':tab:'+tab]||windowSince[key]||Date.now()).toISOString(),fromWindow:true});
+      }
       if(!rows.length&&!(q.chats||[]).length){
         const n=Math.max(1,key==='codex'?w.working:0);
         rows=[{provider:Name,session:'app-window',title:n>1?app+' · '+n+' tasks working':app+' · working',promptCount:1,startedUtc:new Date(windowSince[key]||Date.now()).toISOString(),fromWindow:true}];

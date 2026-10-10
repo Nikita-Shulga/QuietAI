@@ -288,7 +288,7 @@ function render(state){
     else if(W.error)t=W.error;
     else if(!W.fresh)t='Starting…';
     else if(!w||!w.windows)t='App not open';
-    else if(w.busy){const bits=[];if(w.stops.length)bits.push('“'+w.stops[0]+'”');if(w.running.length)bits.push(plural(w.running.length,'running chat','running chats'));else if(w.working)bits.push(plural(w.working,'busy marker','busy markers'));t='Working — sees '+bits.join(', ');}
+    else if(w.busy){const bits=[];if(w.stops.length)bits.push('“'+w.stops[0]+'”');if(w.running.length)bits.push(plural(w.running.length,'running chat','running chats'));else if(w.working)bits.push(plural(w.working,'busy marker','busy markers'));for(const tab of w.tabs||[])bits.push(tab+' working');t='Working — sees '+bits.join(', ');}
     else t='Open · idle';
     text('win-'+k,t);
   }

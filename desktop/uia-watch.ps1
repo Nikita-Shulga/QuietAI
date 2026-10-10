@@ -3,11 +3,14 @@
 # Windows UI Automation (the accessibility API used by screen readers). Markers seen on a
 # real PC (October 2026):
 #   Claude app : button "Stop response" while replying; sidebar buttons "Running <chat title>"
-#                for every running chat/task, together with status elements named "Running".
+#                for every running chat/task, together with status elements named "Running";
+#                the mode switcher's radio buttons read "<mode>, working" (e.g. "Chat and Cowork,
+#                working") for a mode that has running work but isn't the one on screen, so cloud
+#                Cowork tasks and chats are seen whichever tab is open.
 #   Codex app  : button "Stop" while working; status elements named "Working" per busy task;
 #                "Running <command>" items for tool calls (counted as working, never as chat titles).
 # Prints one JSON line per pass:
-#   {"claude":{"windows":1,"stops":["Stop response"],"running":["Fight AI program review"],"working":1},"codex":{...},"ms":120}
+#   {"claude":{"windows":1,"stops":["Stop response"],"running":["Fight AI program review"],"working":1,"tabs":["Chat and Cowork"]},"codex":{...},"ms":120}
 # Only these labels are reported; chat content is never read or sent anywhere.
 # Note: Chromium-based apps expose their content to UI Automation after the first request, so the
 # very first pass after an app starts can come back empty; later passes see everything.
@@ -18,14 +21,15 @@ $scope = [System.Windows.Automation.TreeScope]
 $CT = [System.Windows.Automation.ControlType]
 $interesting = New-Object System.Windows.Automation.OrCondition(
   (New-Object System.Windows.Automation.PropertyCondition($A::ControlTypeProperty, $CT::Button)),
-  (New-Object System.Windows.Automation.PropertyCondition($A::ControlTypeProperty, $CT::StatusBar)))
+  (New-Object System.Windows.Automation.PropertyCondition($A::ControlTypeProperty, $CT::StatusBar)),
+  (New-Object System.Windows.Automation.PropertyCondition($A::ControlTypeProperty, $CT::RadioButton)))
 $interval = 3000
 function Clip([string]$s) { if ($s.Length -gt 80) { $s.Substring(0, 80) } else { $s } }
 while ($true) {
   $started = [Environment]::TickCount
   $result = [ordered]@{
-    claude = [ordered]@{ windows = 0; stops = @(); running = @(); working = 0 }
-    codex  = [ordered]@{ windows = 0; stops = @(); running = @(); working = 0 }
+    claude = [ordered]@{ windows = 0; stops = @(); running = @(); working = 0; tabs = @() }
+    codex  = [ordered]@{ windows = 0; stops = @(); running = @(); working = 0; tabs = @() }
     ms = 0 }
   $owner = @{}
   foreach ($p in (Get-Process -Name claude, codex, chatgpt -ErrorAction SilentlyContinue)) {
@@ -45,6 +49,11 @@ while ($true) {
             $type = $e.Current.ControlType
             if ($type -eq $CT::StatusBar) {
               if ($name -match '^\s*(running|working)\s*$') { $r.working++ }
+              continue
+            }
+            if ($type -eq $CT::RadioButton) {
+              # Mode switcher: "<mode>, working" while that (off-screen) mode has running work.
+              if ($name -match '^\s*(.{1,40}?),\s*working\s*$' -and $r.tabs -notcontains $Matches[1].Trim()) { $r.tabs += $Matches[1].Trim() }
               continue
             }
             if (-not $e.Current.IsEnabled) { continue }
