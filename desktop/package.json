@@ -1,7 +1,7 @@
-{
+﻿{
   "name": "quiet-ai",
   "productName": "Quiet AI",
-  "version": "4.2.0",
+  "version": "4.2.1",
   "description": "Puts your PC to sleep or shuts it down once your Claude and Codex prompts finish.",
   "author": {
     "name": "Nikita Shulga",

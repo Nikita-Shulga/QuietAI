@@ -93,19 +93,32 @@ function run(file,args){
   return new Promise((resolve,reject)=>execFile(file,args,{windowsHide:true,timeout:300000,maxBuffer:1<<20},(err,_o,stderr)=>err?reject(new Error('Unpacking failed: '+(String(stderr||'').trim().slice(0,200)||err.message))):resolve()));
 }
 
-// Starts the hand-over script. The caller quits the app right after this returns.
+// Starts the hand-over script; resolves once it is running on its own, so the caller can quit.
+// Rejects if it couldn't be started, and then the app must stay open.
 function install(unpacked,place,log){
   const pid=String(process.pid);
   if(process.platform==='win32'){
     const script=path.join(unpacked.work,'apply-update.ps1');
     fs.copyFileSync(path.join(__dirname,'apply-update.ps1'),script);
     const shell=path.join(process.env.SystemRoot||'C:\\Windows','System32','WindowsPowerShell','v1.0','powershell.exe');
-    spawn(shell,['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-WindowStyle','Hidden','-File',script,'-ProcessId',pid,'-Source',unpacked.out,'-Target',place.folder,'-Log',log],{detached:true,stdio:'ignore',windowsHide:true}).unref();
-  }else{
-    const script=path.join(unpacked.work,'apply-update.sh');
-    fs.copyFileSync(path.join(__dirname,'apply-update.sh'),script);fs.chmodSync(script,0o755);
-    spawn('/bin/sh',[script,pid,path.join(unpacked.out,'Quiet AI.app'),place.bundle,log],{detached:true,stdio:'ignore'}).unref();
+    // A detached child doesn't run, and a normal one dies with the app's job object; start-update.ps1
+    // relaunches the hand-over outside the job and reports back (see that file).
+    const args=['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',path.join(__dirname,'start-update.ps1'),'-Script',script,'-ProcessId',pid,'-Source',unpacked.out,'-Target',place.folder,'-Log',log];
+    return new Promise((resolve,reject)=>execFile(shell,args,{windowsHide:true,timeout:60000},(err,stdout)=>{
+      if(err)reject(new Error('The update couldn’t be started: '+(String(stdout||'').trim()||err.message)));else resolve();
+    }));
   }
+  const script=path.join(unpacked.work,'apply-update.sh');
+  fs.copyFileSync(path.join(__dirname,'apply-update.sh'),script);fs.chmodSync(script,0o755);
+  spawn('/bin/sh',[script,pid,path.join(unpacked.out,'Quiet AI.app'),place.bundle,log],{detached:true,stdio:'ignore'}).unref();
+  return Promise.resolve();
 }
 
-module.exports={check,download,install,installation,newer,REPO,TARGET};
+// Removes temporary update folders left next to the app by an interrupted or failed update.
+function cleanup(){
+  const place=installation();if(place.problem)return;
+  const base=place.folder||path.dirname(place.bundle);
+  try{for(const name of fs.readdirSync(base))if(name.startsWith('.quietai-update-'))fs.rmSync(path.join(base,name),{recursive:true,force:true});}catch{}
+}
+
+module.exports={check,download,install,installation,cleanup,newer,REPO,TARGET};

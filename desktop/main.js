@@ -567,7 +567,13 @@ async function installUpdate(){
     if(active())throw new Error('A plan was started during the download, so the update was not installed.');
     update.phase='installing';broadcast();
     activity('update-install',{from:VERSION,to:update.info.latest});
-    updater.install(unpacked,place,activityFile);
+    try{await updater.install(unpacked,place,activityFile);}
+    catch(ex){
+      // The hand-over didn't start: stay open, clean up, and offer the manual download instead.
+      try{fs.rmSync(unpacked.work,{recursive:true,force:true});}catch{}
+      activity('update-handover-failed',{message:ex.message});shell.openExternal(update.info.page);
+      throw new Error(ex.message+' The download page was opened instead.');
+    }
     setTimeout(()=>{reset();app.quit();},300);
   }catch(ex){update={...update,phase:'idle',progress:0,error:ex.message};broadcast();throw ex;}
 }
@@ -676,7 +682,7 @@ app.whenReady().then(()=>{
   if(!preview)createTray();
   startWindowWatcher();
   setInterval(scan,2000);setInterval(tick,300);
-  if(!process.argv.includes('--capture')&&!process.env.QUIETAI_TEST_HOOKS){setTimeout(()=>checkUpdate(false),15000);setInterval(()=>checkUpdate(false),6*3600000);}
+  if(!process.argv.includes('--capture')&&!process.env.QUIETAI_TEST_HOOKS){setTimeout(()=>{updater.cleanup();checkUpdate(false);},15000);setInterval(()=>checkUpdate(false),6*3600000);}
 });
 app.on('window-all-closed',()=>app.quit());
 app.on('will-quit',()=>{try{tray?.destroy();}catch{}tray=null;});

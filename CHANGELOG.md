@@ -1,5 +1,11 @@
 # Changelog
 
+## Quiet AI 4.2.1
+
+- Fixed: **Update now** on Windows downloaded and verified the new version, closed Quiet AI, but never installed it. Quiet AI runs inside a Windows job object that ends its child processes when it quits, and a "detached" PowerShell started from the app exits without running. The update hand-over is now started outside the job (`start-update.ps1`), and Quiet AI only closes once the hand-over has confirmed it's running; if it can't start, Quiet AI stays open, shows why and opens the download page. Verified end to end on Windows 11: 4.1.9 → 4.2.0 from GitHub Releases, files swapped and the app reopened.
+- The hand-over's progress is written to the activity log ("Update: …" lines), a failure to start it is logged as `update-handover-failed`, and leftover temporary update folders are removed at the next start.
+- If you're on 4.2.0, download this version once from the release page; from then on **Update now** works by itself.
+
 ## Quiet AI 4.2.0
 
 - Added in-app updates: Settings → About → Updates checks this project's GitHub Releases (quietly at start and every 6 hours, or on a click). Update now downloads this computer's package, checks it against the release's SHA256SUMS.txt, and restarts Quiet AI into the new version. Settings are kept. Updating is refused while a plan is armed. If the app's folder isn't writable, the download page opens instead.
