@@ -1,4 +1,4 @@
-﻿"""Package the shared desktop app with Electron and a self-contained monitor.
+"""Package the shared desktop app with Electron and a self-contained monitor.
 Requires Python 3 and .NET 10 SDK. No npm dependencies. See README.md.
 """
 import argparse, hashlib, json, os, plistlib, shutil, stat, subprocess, urllib.request, zipfile
@@ -109,7 +109,7 @@ def main():
     # The in-app updater checks this repository's GitHub Releases (GitHub Actions sets GITHUB_REPOSITORY).
     update_repo=args.repo or os.environ.get('GITHUB_REPOSITORY','')
     if update_repo:
-        manifest=json.loads((app_dir/'package.json').read_text(encoding='utf-8'));manifest['updateRepo']=update_repo
+        manifest=json.loads((app_dir/'package.json').read_text(encoding='utf-8-sig'));manifest['updateRepo']=update_repo
         (app_dir/'package.json').write_text(json.dumps(manifest,indent=2)+'\n',encoding='utf-8')
     shutil.copytree(agent,app_dir/'agent')
     shutil.copyfile(repo/'hooks/ClaudeHook.ps1',app_dir/'agent/ClaudeHook.ps1')

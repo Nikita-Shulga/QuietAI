@@ -50,7 +50,7 @@ jobs:
       - name: Check the tag matches the app version
         run: |
           tag="${GITHUB_REF_NAME#v}"
-          app=$(python3 -c "import json;print(json.load(open('desktop/package.json'))['version'])")
+          app=$(python3 -c "import json;print(json.load(open('desktop/package.json',encoding='utf-8-sig'))['version'])")
           build=$(python3 -c "import re;print(re.search(r\"VERSION='([^']+)'\",open('scripts/build.py').read())[1])")
           if [ "$tag" != "$app" ] || [ "$tag" != "$build" ]; then
             echo "::error::Tag $GITHUB_REF_NAME does not match desktop/package.json ($app) and scripts/build.py ($build)."; exit 1
