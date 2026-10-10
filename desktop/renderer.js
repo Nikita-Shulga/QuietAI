@@ -279,7 +279,6 @@ function render(state){
   }
   const W=state.windows||{};
   $('tray-toggle').checked=settings.minimizeToTray!==false;
-  $('sweep-toggle').checked=settings.sweepClaude!==false;$('sweep-toggle').disabled=active;$('sweep-row').classList.toggle('hidden',state.platform!=='win32');
   $('away-toggle').checked=settings.waitForAway!==false;$('away-toggle').disabled=active;$('away-detail').textContent=`Only act after ${duration('awayMinutes',settings.awayMinutes||10)} with no mouse or keyboard use. Using the computer during the final countdown cancels it. The countdown appears on top of everything, on every screen.`;$('away-row').classList.toggle('hidden',settings.waitForAway===false);$('away-row').querySelector('.select').disabled=active;
   $('windows-toggle').checked=settings.watchWindows!==false;$('windows-toggle').disabled=active||!W.supported;
   for(const k of ['claude','codex']){
@@ -338,7 +337,6 @@ document.querySelectorAll('.browse').forEach(b=>b.addEventListener('click',()=>c
 document.querySelectorAll('.automatic').forEach(b=>b.addEventListener('click',()=>command('update',{[b.dataset.provider==='codex'?'codexSessionsOverride':'claudeHomeOverride']:''})));
 $('tray-toggle').addEventListener('change',()=>command('tray',{on:$('tray-toggle').checked}));
 $('away-toggle').addEventListener('change',()=>command('update',{waitForAway:$('away-toggle').checked}));
-$('sweep-toggle').addEventListener('change',()=>command('update',{sweepClaude:$('sweep-toggle').checked}));
 $('windows-toggle').addEventListener('change',()=>command('update',{watchWindows:$('windows-toggle').checked}));
 for(const[n,k]of [['codex','codexEnabled'],['claude','claudeEnabled']])$(n+'-toggle').addEventListener('change',()=>command('update',{[k]:$(n+'-toggle').checked}));
 $('arm').addEventListener('click',()=>command(current&&ACTIVE.includes(current.plan.phase)?'stop':'arm'));
