@@ -1,0 +1,17 @@
+/* The final-countdown banner shown on every screen, always on top. Always dark, for contrast. */
+@font-face{font-family:"Inter";src:url(fonts/Inter-Medium.woff) format("woff");font-weight:500;font-display:block}
+@font-face{font-family:"Inter";src:url(fonts/Inter-SemiBold.woff) format("woff");font-weight:600;font-display:block}
+@font-face{font-family:"Inter Display";src:url(fonts/InterDisplay-SemiBold.woff) format("woff");font-weight:600;font-display:block}
+:root{color-scheme:dark}
+*{box-sizing:border-box;margin:0}
+html,body{height:100%;background:#121214;overflow:hidden;font-family:"Inter",-apple-system,"Segoe UI",sans-serif;color:#EDEDEF;-webkit-user-select:none;user-select:none}
+.card{position:relative;height:100%;display:flex;align-items:center;gap:18px;padding:0 22px 6px;border:1px solid rgba(255,255,255,.12);border-radius:14px;background:radial-gradient(120% 140% at 0% 0%,rgba(245,161,58,.16),transparent 55%),#121214}
+.mark{width:52px;flex:none}
+.text{flex:1;min-width:0}
+h1{font:600 26px/32px "Inter Display","Inter",sans-serif;letter-spacing:-.01em;white-space:nowrap}
+.left{color:#FFC772;font-variant-numeric:tabular-nums}
+p{margin-top:4px;font:500 13px/18px "Inter",sans-serif;color:#A0A0A8}
+button{flex:none;height:40px;padding:0 20px;border:0;border-radius:10px;font:600 14px "Inter",sans-serif;color:#0B0B0C;background:linear-gradient(180deg,#F4F4F6,#DCDCE0);cursor:pointer}
+button:hover{filter:brightness(1.05)}
+.bar{position:absolute;left:22px;right:22px;bottom:12px;height:3px;border-radius:2px;background:rgba(255,255,255,.08);overflow:hidden}
+.bar span{display:block;height:100%;width:100%;background:#F5A13A;transform-origin:left;transition:transform .3s linear}

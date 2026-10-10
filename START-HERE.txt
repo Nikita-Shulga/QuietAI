@@ -1,0 +1,25 @@
+Quiet AI 4.1.0
+
+Windows: extract the whole ZIP, then open QuietAI.exe.
+Mac: extract, move Quiet AI.app to Applications, then open it.
+No separate Node, Python, or .NET installation is required.
+
+Detected Codex and Claude installations are selected by default.
+Folders are discovered on startup. Settings (sliders icon, top right)
+offers manual folder choices, Find folders again, and light/dark theme.
+On Windows, work shown in the Claude and Codex desktop apps (Chat, Cowork,
+Code, local or cloud) is tracked through the app windows; keep the apps open.
+For Claude Code run in a terminal, click Connect Claude Code once in Settings,
+then restart or resume open Code sessions. Other Claude hooks are retained
+and the original settings are backed up.
+
+Choose an action and timings. Start monitoring (Enter) arms an agent plan;
+Start timer arms an independent timer. Esc stops or cancels. The preview alone never arms it.
+All enabled sources must be connected and verified clear in agent mode.
+Stop or Cancel disarms the plan. Closing the app cancels a pending plan.
+
+Mac packages are previews: ad hoc signed, not Apple-notarized. Read docs/MAC.md.
+Read README.md and docs/DETECTION.md for setup, monitoring, and privacy.
+Close an older Codex Quiet app before using Quiet AI.
+
+MIT License - (c) 2026 Nikita Shulga - https://nikitashulga.com

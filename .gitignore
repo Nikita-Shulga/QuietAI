@@ -1,0 +1,13 @@
+.artifacts/
+bin/
+obj/
+node_modules/
+*.pdb
+*.zip
+monitor-cache-*.json
+settings.json
+claude-events/
+.DS_Store
+Thumbs.db
+*.log
+quietai-e2e/

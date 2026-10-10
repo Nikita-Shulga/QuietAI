@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:"><title>Quiet AI</title><link rel="stylesheet" href="countdown.css"></head>
+<body>
+  <main class="card" role="alertdialog" aria-labelledby="title" aria-describedby="hint">
+    <svg class="mark" viewBox="96 172 320 180" aria-hidden="true"><defs><linearGradient id="sun" x1="0" y1="188" x2="0" y2="278" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#FFD07A"/><stop offset="1" stop-color="#F28422"/></linearGradient></defs><path d="M133.8 278A128 128 0 0 1 378.2 278Z" fill="url(#sun)"/><rect x="112" y="292" width="288" height="16" rx="8" fill="#F69C34"/><rect x="176" y="326" width="160" height="16" rx="8" fill="#F69C34" opacity=".47"/></svg>
+    <div class="text">
+      <h1 id="title"><span id="what">Sleeping</span> in <span id="left" class="left">0:30</span></h1>
+      <p id="hint">Your AI has finished. Move the mouse or press Cancel to stay awake.</p>
+    </div>
+    <button id="cancel">Cancel</button>
+    <div class="bar"><span id="fill"></span></div>
+  </main>
+  <script src="countdown.js"></script>
+</body></html>

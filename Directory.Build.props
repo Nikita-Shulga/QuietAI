@@ -1,0 +1,11 @@
+<Project>
+  <PropertyGroup>
+    <CODEXQUIET_BUILD_ROOT Condition="'$(QUIETAI_BUILD_ROOT)' != ''">$(QUIETAI_BUILD_ROOT)</CODEXQUIET_BUILD_ROOT>
+    <CodexQuietBuildRoot Condition="'$(CODEXQUIET_BUILD_ROOT)' == ''">$(MSBuildThisFileDirectory).artifacts</CodexQuietBuildRoot>
+    <CodexQuietBuildRoot Condition="'$(CODEXQUIET_BUILD_ROOT)' != ''">$(CODEXQUIET_BUILD_ROOT)</CodexQuietBuildRoot>
+    <BaseIntermediateOutputPath>$(CodexQuietBuildRoot)/obj/$(MSBuildProjectName)/</BaseIntermediateOutputPath>
+    <BaseOutputPath>$(CodexQuietBuildRoot)/bin/$(MSBuildProjectName)/</BaseOutputPath>
+    <DefaultItemExcludes>$(DefaultItemExcludes);**/bin/**;**/obj/**;**/.artifacts/**</DefaultItemExcludes>
+    <Deterministic>true</Deterministic>
+  </PropertyGroup>
+</Project>
