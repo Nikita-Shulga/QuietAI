@@ -31,6 +31,7 @@ public sealed class MonitorEngine
 
     private string _lastCodexVisible = "";
     private string _lastClaudeLive = "";
+    private readonly HashSet<string> _seenLiveSessions = new(StringComparer.OrdinalIgnoreCase);
     private ProviderSnapshot ScanCodex(MonitorOptions options, CancellationToken token)
     {
         if (!options.CodexEnabled) return new("Codex", false, false, [], "Disabled in Connections.");
@@ -160,6 +161,20 @@ public sealed class MonitorEngine
     private List<WorkItem> WithClaudeLiveSessions(List<WorkItem> work, MonitorOptions options)
     {
         var live = ClaudeLiveSessions.Read(options.ClaudeHome);
+        // An interrupted turn never sends Stop, so its prompt would look "running" until the next turn
+        // ends. Claude Code's own live status settles it: a root prompt is over if its session has been
+        // idle for a minute since that prompt's last event, or if a session seen here before has exited.
+        // Only root prompts are dropped; subagents and background tasks keep their own tracking.
+        var liveById = live.GroupBy(s => s.Id, StringComparer.OrdinalIgnoreCase).ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+        foreach (var s in live) _seenLiveSessions.Add(s.Id);
+        bool Stale(WorkItem item)
+        {
+            if (item.Status != WorkStatus.Running || !item.Key.Contains(":prompt:", StringComparison.Ordinal)) return false;
+            if (liveById.TryGetValue(item.Session, out var s))
+                return s.Status is "idle" or "shell" && DateTime.UtcNow - s.UpdatedUtc > TimeSpan.FromMinutes(1) && item.LastEventUtc < s.UpdatedUtc;
+            return _seenLiveSessions.Contains(item.Session);
+        }
+        work = work.Where(item => !Stale(item)).ToList();
         var hooked = work.Where(item => item.Status == WorkStatus.Running).Select(item => item.Session).ToHashSet(StringComparer.OrdinalIgnoreCase);
         foreach (var session in live.Where(ClaudeLiveSessions.Working).Where(s => !hooked.Contains(s.Id)))
         {

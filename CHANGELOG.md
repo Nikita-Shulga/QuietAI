@@ -1,5 +1,10 @@
 # Changelog
 
+## Quiet AI 4.2.2
+
+- Fixed: a Claude Code chat could show as running for hours after it had finished, which kept plans waiting. When a turn is interrupted (Esc, a dropped session), Claude Code sends no Stop event, so that prompt stayed open. Now the end of any later turn closes all earlier prompts of the session, and Claude Code's own live status settles it sooner: once the session has been idle for a minute, or has exited, its earlier prompts count as finished. Subagents and background tasks are still tracked through Claude's own list of running work.
+- Downloads are smaller: they carry a short START-HERE guide instead of the full README and docs folder (which stay on GitHub).
+
 ## Quiet AI 4.2.1
 
 - Fixed: **Update now** on Windows downloaded and verified the new version, closed Quiet AI, but never installed it. Quiet AI runs inside a Windows job object that ends its child processes when it quits, and a "detached" PowerShell started from the app exits without running. The update hand-over is now started outside the job (`start-update.ps1`), and Quiet AI only closes once the hand-over has confirmed it's running; if it can't start, Quiet AI stays open, shows why and opens the download page. Verified end to end on Windows 11: 4.1.9 → 4.2.0 from GitHub Releases, files swapped and the app reopened.

@@ -208,6 +208,9 @@ public static class EventLog
                 state.Work.Remove(key);
                 if (eventType == "Stop" && string.IsNullOrEmpty(agent))
                 {
+                    // A session runs one root turn at a time, so its turn ending means every earlier prompt
+                    // is over too — including turns that were interrupted and never sent their own Stop.
+                    foreach (var old in state.Work.Keys.Where(k => k.StartsWith("prompt:", StringComparison.Ordinal)).ToArray()) state.Work.Remove(old);
                     foreach (var old in state.Work.Keys.Where(k => k.StartsWith("background:") || k.StartsWith("cron:")).ToArray()) state.Work.Remove(old);
                     if (!root.TryGetProperty("background_tasks", out var background) || background.ValueKind != JsonValueKind.Array ||
                         !root.TryGetProperty("session_crons", out var crons) || crons.ValueKind != JsonValueKind.Array)
