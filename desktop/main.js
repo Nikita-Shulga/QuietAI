@@ -20,7 +20,7 @@ let plan={phase:'disarmed',until:null,started:null};
 const settingsPath=path.join(configRoot,'settings.json');
 const legacyRoot=process.platform==='win32'?path.join(process.env.LOCALAPPDATA,'CodexQuietShutdown'):null;
 const stateRoot=process.env.QUIETAI_PROFILE?path.join(configRoot,'monitor'):legacyRoot||path.join(configRoot,'monitor');
-const defaults={version:4,action:'Sleep',scheduleMode:'Codex',quietMinutes:5,countdownSeconds:60,timerMinutes:60,codexEnabled:null,claudeEnabled:null,codexSessionsOverride:'',claudeHomeOverride:'',excludedWork:[],theme:'system',watchWindows:true,waitForAway:true,minimizeToTray:true,trayHintShown:false,awayMinutes:10};
+const defaults={version:4,action:'Sleep',scheduleMode:'Codex',quietMinutes:5,countdownSeconds:60,timerMinutes:60,codexEnabled:null,claudeEnabled:null,codexSessionsOverride:'',claudeHomeOverride:'',excludedWork:[],theme:'system',watchWindows:true,waitForAway:true,minimizeToTray:true,trayHintShown:false,awayMinutes:10,sweepClaude:true};
 const THEMES=['system','light','dark'];
 function themeBackground(){return nativeTheme.shouldUseDarkColors?'#0A0A0B':'#F3F3F5';}
 function loadSettings(){
@@ -450,10 +450,37 @@ let windowWatcher=null,quitting=false;
 // plan is armed, show the sidebar (same as clicking "Show sidebar"); otherwise only report it.
 let lastSidebarFix=0;
 function showClaudeSidebar(){
-  if(!active()||plan.phase==='executing'||!settings.watchWindows||!settings.claudeEnabled||process.platform!=='win32'||Date.now()-lastSidebarFix<30000)return;
+  if(sweepEnabled()||!active()||plan.phase==='executing'||!settings.watchWindows||!settings.claudeEnabled||process.platform!=='win32'||Date.now()-lastSidebarFix<30000)return;
   lastSidebarFix=Date.now();
   const shell=path.join(process.env.SystemRoot||'C:\\Windows','System32','WindowsPowerShell','v1.0','powershell.exe');
   execFile(shell,['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',path.join(__dirname,'show-claude-sidebar.ps1')],{windowsHide:true,timeout:15000},(err,stdout)=>activity('claude-sidebar-shown',{ok:!err&&String(stdout).trim()!=='0'}));
+}
+// ——— Claude sweep ———
+// Cloud chats and Cowork tasks only show in the Claude window, and only for the tab on screen (or
+// as a "working" badge, which a hidden sidebar removes). So right before the countdown, once nobody
+// has touched the computer for SWEEP_IDLE_MS, Quiet AI opens each Claude tab in turn (claude-sweep.ps1),
+// reads what's running, and puts the window back. Anything running sends the plan back to waiting.
+const SWEEP_IDLE_MS=+process.env.QUIETAI_SWEEP_IDLE_MS||60000; // env: tests only
+let sweepRunning=false,sweepFreeze=null;
+function sweepEnabled(){return settings.sweepClaude!==false&&settings.watchWindows&&settings.claudeEnabled&&process.platform==='win32';}
+function claudeRunning(){return !!windows.claude&&windows.claude.windows>0;}
+function runClaudeSweep(){
+  sweepRunning=true;sweepFreeze={windows:JSON.parse(JSON.stringify(windows)),until:Number.POSITIVE_INFINITY};
+  const started=Date.now(),idleBefore=userIdleMs(),planAtStart=plan;
+  message='Checking every Claude tab before acting…';broadcast();
+  const shell=path.join(process.env.SystemRoot||'C:\\Windows','System32','WindowsPowerShell','v1.0','powershell.exe');
+  execFile(shell,['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',path.join(__dirname,'claude-sweep.ps1')],{windowsHide:true,timeout:90000},(err,stdout)=>{
+    sweepRunning=false;sweepFreeze.until=Date.now()+8000;
+    let r=null;try{r=JSON.parse(String(stdout).trim().split(/\r?\n/).pop());}catch{}
+    const touched=userIdleMs()<Date.now()-started; // someone used the mouse/keyboard during the sweep
+    activity('claude-sweep',{ok:!!r&&!err,seconds:Math.round((Date.now()-started)/1000),modes:r?.modes,busy:r?.busy,error:err?.message||r?.error||undefined,touched,idleBeforeS:Math.round(idleBefore/1000)});
+    if(plan!==planAtStart||plan.phase!=='idle')return; // stopped or changed meanwhile
+    if(touched){plan={...plan,until:Date.now()+SWEEP_IDLE_MS,present:true};message='You’re using the computer, so Quiet AI will check Claude again once you step away.';}
+    else if(!r||err||(r.error&&!(r.busy||[]).length)){plan={...plan,until:Date.now()+SWEEP_IDLE_MS};error='Couldn’t check every Claude tab ('+(err?.message||r?.error||'no result')+'). Trying again in a minute.';}
+    else if((r.busy||[]).length){plan={phase:'waiting',started:null,until:null};lastRevision=null;message='Claude is still working ('+r.busy[0]+'). Waiting for it to finish.';}
+    else{plan={...plan,swept:Date.now()};message='Checked every Claude tab: nothing running.';error='';}
+    broadcast();
+  });
 }
 const {performance}=require('node:perf_hooks');
 const watcherStarted=performance.now();
@@ -462,7 +489,10 @@ function windowsSupported(){return process.platform==='win32'||!!process.env.QUI
 function applyWindows(snap){
   if(!snap)return snap;
   snap={...snap,work:[...(snap.work||[])],chats:[...(snap.chats||[])]};
-  const sig=settings.watchWindows?['claude','codex'].map(k=>{const w=windows[k]||{};return [(w.stops||[]).length,(w.running||[]).join('|'),w.working|0].join(':');}).join(','):'off';
+  // While the Claude sweep switches tabs (and a few seconds after), use what the windows showed
+  // before it: the sweep reports its own result, and its tab switching mustn't look like new work.
+  const view=sweepFreeze&&Date.now()<sweepFreeze.until?sweepFreeze.windows:windows;
+  const sig=settings.watchWindows?['claude','codex'].map(k=>{const w=view[k]||{};return [(w.stops||[]).length,(w.running||[]).join('|'),w.working|0,(w.tabs||[]).join('|')].join(':');}).join(','):'off';
   if(sig!==lastWindowSig){lastWindowSig=sig;windowRevision++;}
   snap.revision=String(snap.revision)+'/'+windowRevision; // stable format, changes only with what the windows show
   if(!settings.watchWindows||!windowsSupported())return snap;
@@ -476,7 +506,7 @@ function applyWindows(snap){
   }
   for(const [key,Name,app] of [['claude','Claude','Claude app'],['codex','Codex','Codex app']]){
     const p=snap[key];if(!p||!settings[key+'Enabled'])continue;
-    const w=windows[key];
+    const w=view[key];
     const q={...p,work:[...(p.work||[])],chats:[...(p.chats||[])],windowWatch:true};
     // Without hooks/session logs the provider can still be watched through its app window.
     const setupOnly=item=>item.key===Name+':connection'&&/Connect Claude|No Claude events|sessions folder is missing|Waiting for the first/i.test(String(item.reason||''));
@@ -485,7 +515,7 @@ function applyWindows(snap){
       q.work=[];q.connected=true;q.viaWindowOnly=true;q.uncertain=0;
       snap.work=snap.work.filter(x=>!drop.has(x.key));snap.uncertain=Math.max(0,(snap.uncertain||0)-drop.size);
     }
-    if(w&&w.sidebarHidden){
+    if(w&&w.sidebarHidden&&!sweepEnabled()){
       const item={key:Name+':sidebar',provider:Name,session:'app-window',label:'Claude’s sidebar is hidden',status:'Uncertain',reason:'With the sidebar hidden, Claude chats and Cowork tasks that aren’t on screen can’t be seen. Show the sidebar in Claude; while a plan is armed Quiet AI shows it itself.',lastEventUtc:new Date().toISOString()};
       q.work.push(item);snap.work.push(item);q.uncertain=(q.uncertain||0)+1;snap.uncertain=(snap.uncertain||0)+1;
     }
@@ -536,10 +566,18 @@ async function tick(){
   if(plan.until&&Date.now()>=plan.until){
     if(plan.phase==='timer'||plan.phase==='idle'){
       if(plan.phase==='idle'&&(busy||error||!snapshot?.clear))return;
+      if(sweepRunning)return;
       // Only act once nobody has used the mouse or keyboard for the quiet period.
       if(settings.waitForAway){
         const idle=userIdleMs();
         if(idle<awayMs()){plan={...plan,until:Date.now()+Math.max(1000,awayMs()-idle),present:true};broadcast();return;}
+      }
+      // Agent plans: check every Claude tab first (cloud chats/Cowork aren't visible otherwise),
+      // only once nobody has touched the computer for a minute, so tabs never switch under someone.
+      if(plan.phase==='idle'&&sweepEnabled()&&claudeRunning()&&!(plan.swept&&Date.now()-plan.swept<30000)){
+        const idle=userIdleMs();
+        if(idle<SWEEP_IDLE_MS){plan={...plan,until:Date.now()+Math.max(1000,SWEEP_IDLE_MS-idle),present:true};broadcast();return;}
+        runClaudeSweep();return;
       }
       plan={phase:'countdown',started:Date.now(),until:Date.now()+settings.countdownSeconds*1000,timer:settings.scheduleMode==='Timer'};announceCountdown();
     }else if(plan.phase==='countdown'){
@@ -588,7 +626,7 @@ async function installUpdate(){
 }
 function validateUpdate(update){
   const result={};
-  for(const key of ['codexEnabled','claudeEnabled','watchWindows','waitForAway','minimizeToTray'])if(typeof update[key]==='boolean')result[key]=update[key];
+  for(const key of ['codexEnabled','claudeEnabled','watchWindows','waitForAway','minimizeToTray','sweepClaude'])if(typeof update[key]==='boolean')result[key]=update[key];
   for(const key of ['codexSessionsOverride','claudeHomeOverride'])if(typeof update[key]==='string'&&update[key].length<4000)result[key]=update[key];
   if(power.actions.includes(update.action))result.action=update.action;
   if(['Codex','Timer'].includes(update.scheduleMode))result.scheduleMode=update.scheduleMode;
