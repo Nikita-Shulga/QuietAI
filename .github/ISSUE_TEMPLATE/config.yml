@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/Nikita-Shulga/QuietAI/security/advisories/new
+    about: Please report security problems privately, not as a public issue.
+  - name: How detection works
+    url: https://github.com/Nikita-Shulga/QuietAI/blob/main/docs/DETECTION.md
+    about: What Quiet AI watches, and its known limits. Worth a look before reporting a detection bug.

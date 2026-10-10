@@ -2,11 +2,11 @@
 
 ## Choose the package
 
-- Apple Silicon (M-series): `QuietAI-4.1.0-mac-arm64.zip`.
-- Intel: `QuietAI-4.1.0-mac-x64.zip`.
+- Apple Silicon (M-series): `QuietAI-<version>-mac-arm64.zip`.
+- Intel: `QuietAI-<version>-mac-x64.zip`.
 - Requires macOS 14 or later. The runtime and monitor are bundled.
 
-Extract with Archive Utility so framework symlinks and executable permissions are retained. Move **Quiet AI.app** to Applications, then open it.
+Extract with Archive Utility so framework symlinks and executable permissions are retained. Move **Quiet AI.app** to Applications, then open it. Keep it in Applications: in-app updates replace the app where it is, and macOS runs apps opened straight from Downloads from a read-only location.
 
 These preview bundles are built by GitHub Actions on macOS and signed ad hoc for local execution. They are not notarized or signed with an Apple Developer ID certificate. If macOS blocks the first launch, use the per-app **System Settings → Privacy & Security → Open Anyway** control after attempting to open this download. Do not disable Gatekeeper globally. Apple's explanation is [Open apps safely on your Mac](https://support.apple.com/en-us/102445).
 

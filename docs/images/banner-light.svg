@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="320" viewBox="0 0 1280 320" role="img" aria-label="Quiet AI — Let your AI finish. Let your computer rest.">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FAFAFB"/>
+      <stop offset="1" stop-color="#FFF3E6"/>
+    </linearGradient>
+    <linearGradient id="sun" x1="0" y1="188" x2="0" y2="278" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFC45A"/>
+      <stop offset="1" stop-color="#EE7A12"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="1" r="0.75">
+      <stop offset="0" stop-color="#F69C34" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#F69C34" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1280" height="320" rx="24" fill="url(#sky)"/>
+  <rect x=".5" y=".5" width="1279" height="319" rx="23.5" fill="none" stroke="#E4E4E7"/>
+  <ellipse cx="300" cy="300" rx="420" ry="190" fill="url(#glow)"/>
+  <g transform="translate(130 70) scale(1.05)">
+    <svg x="0" y="0" width="320" height="180" viewBox="96 172 320 180">
+      <path d="M133.8 278A128 128 0 0 1 378.2 278Z" fill="url(#sun)"/>
+      <path d="M112 300H400" stroke="#EE8A22" stroke-opacity=".95" stroke-width="20" stroke-linecap="round"/>
+      <path d="M176 336H336" stroke="#EE8A22" stroke-opacity=".5" stroke-width="20" stroke-linecap="round"/>
+    </svg>
+  </g>
+  <text x="530" y="160" fill="#18181B" font-family="Inter, 'Segoe UI', -apple-system, Helvetica, Arial, sans-serif" font-size="84" font-weight="600" letter-spacing="-2">Quiet <tspan fill="#71717A" font-weight="300">AI</tspan></text>
+  <text x="534" y="216" fill="#3F3F46" font-family="Inter, 'Segoe UI', -apple-system, Helvetica, Arial, sans-serif" font-size="30" font-weight="400">Let your AI finish. Let your computer rest.</text>
+  <text x="534" y="262" fill="#71717A" font-family="Inter, 'Segoe UI', -apple-system, Helvetica, Arial, sans-serif" font-size="21" font-weight="400">Sleep, shut down or hibernate once Claude Code and Codex are done.</text>
+</svg>

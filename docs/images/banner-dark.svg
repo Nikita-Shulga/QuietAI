@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="320" viewBox="0 0 1280 320" role="img" aria-label="Quiet AI — Let your AI finish. Let your computer rest.">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0A0A0B"/>
+      <stop offset="1" stop-color="#1A1410"/>
+    </linearGradient>
+    <linearGradient id="sun" x1="0" y1="188" x2="0" y2="278" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFD07A"/>
+      <stop offset="1" stop-color="#F28422"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="1" r="0.75">
+      <stop offset="0" stop-color="#F69C34" stop-opacity=".28"/>
+      <stop offset="1" stop-color="#F69C34" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1280" height="320" rx="24" fill="url(#sky)"/>
+  <ellipse cx="300" cy="300" rx="420" ry="190" fill="url(#glow)"/>
+  <g transform="translate(130 70) scale(1.05)">
+    <svg x="0" y="0" width="320" height="180" viewBox="96 172 320 180">
+      <path d="M133.8 278A128 128 0 0 1 378.2 278Z" fill="url(#sun)"/>
+      <path d="M112 300H400" stroke="#F69C34" stroke-opacity=".92" stroke-width="20" stroke-linecap="round"/>
+      <path d="M176 336H336" stroke="#F69C34" stroke-opacity=".45" stroke-width="20" stroke-linecap="round"/>
+    </svg>
+  </g>
+  <text x="530" y="160" fill="#F5F5F7" font-family="Inter, 'Segoe UI', -apple-system, Helvetica, Arial, sans-serif" font-size="84" font-weight="600" letter-spacing="-2">Quiet <tspan fill="#A1A1AA" font-weight="300">AI</tspan></text>
+  <text x="534" y="216" fill="#D4D4D8" font-family="Inter, 'Segoe UI', -apple-system, Helvetica, Arial, sans-serif" font-size="30" font-weight="400">Let your AI finish. Let your computer rest.</text>
+  <text x="534" y="262" fill="#8A8A93" font-family="Inter, 'Segoe UI', -apple-system, Helvetica, Arial, sans-serif" font-size="21" font-weight="400">Sleep, shut down or hibernate once Claude Code and Codex are done.</text>
+</svg>

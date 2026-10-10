@@ -643,7 +643,7 @@ app.on('second-instance',showWindow);
 app.whenReady().then(()=>{
   if(!primaryInstance)return;
   loadSettings();
-  if(preview){settings.codexEnabled=settings.claudeEnabled=true;sources={codex:{detected:true,folder:'Automatically detected',origin:'User profile'},claude:{detected:true,folder:'Automatically detected',origin:'User profile'}}; snapshot={chatCount:3,backgroundRunning:1,scheduled:0,uncertain:0,clear:false,checkedUtc:new Date().toISOString(),chats:[{provider:'Codex',title:'Build the next release',session:'demo-1'},{provider:'Codex',title:'Polish the settings experience',session:'demo-2'},{provider:'Claude',title:'Review the documentation',session:'demo-3'}],codex:{enabled:true,connected:true,chatCount:2,detail:'Local sessions connected.'},claude:{enabled:true,connected:true,chatCount:1,detail:'Lifecycle hooks connected.'},work:[]};}
+  if(preview){settings.codexEnabled=settings.claudeEnabled=true;sources={codex:{detected:true,folder:'Automatically detected',origin:'User profile'},claude:{detected:true,folder:'Automatically detected',origin:'User profile'}}; snapshot={chatCount:3,backgroundRunning:1,scheduled:0,uncertain:0,clear:false,checkedUtc:new Date().toISOString(),chats:[{provider:'Codex',title:'Build the next release',session:'demo-1',startedUtc:new Date(Date.now()-23*60000).toISOString()},{provider:'Codex',title:'Polish the settings experience',session:'demo-2',startedUtc:new Date(Date.now()-7*60000).toISOString()},{provider:'Claude',title:'Review the documentation',session:'demo-3',startedUtc:new Date(Date.now()-64*60000).toISOString()}],codex:{enabled:true,connected:true,chatCount:2,detail:'Local sessions connected.'},claude:{enabled:true,connected:true,chatCount:1,detail:'Lifecycle hooks connected.'},work:[]};}
   const executable=path.join(__dirname,'agent',process.platform==='win32'?'QuietAI.Agent.exe':'QuietAI.Agent');
   agent=new Agent(executable,stateRoot);
   Menu.setApplicationMenu(process.platform==='darwin'?Menu.buildFromTemplate([{label:'Quiet AI',submenu:[{role:'about'},{type:'separator'},{role:'quit'}]},{label:'Edit',submenu:[{role:'copy'},{role:'paste'},{role:'selectAll'}]}]):null);
@@ -657,7 +657,7 @@ app.whenReady().then(()=>{
     if(!process.argv.includes('--capture'))window.show();
     broadcast();await scan();
     const index=process.argv.indexOf('--capture');
-    if(index>=0){setTimeout(async()=>{const image=await window.webContents.capturePage();fs.writeFileSync(process.argv[index+1],image.toPNG());app.quit();},1800);}
+    if(index>=0){setTimeout(async()=>{const image=await window.webContents.capturePage();fs.writeFileSync(process.argv[index+1],image.toPNG());app.quit();},Number(process.env.QUIETAI_CAPTURE_DELAY)||1800);} // delay: let the theme fade in for screenshots
   });
   window.on('minimize',()=>{if(settings.minimizeToTray&&tray)setImmediate(hideToTray);}); // taskbar / Win+Down minimize
   window.on('close',event=>{
@@ -672,7 +672,7 @@ app.whenReady().then(()=>{
   window.on('unresponsive',()=>{reset();error='The interface is not responding. The power plan was cancelled.';});
   for(const e of ['suspend','resume','lock-screen','unlock-screen','shutdown'])powerMonitor.on(e,()=>activity('power',{what:e,phase:plan.phase}));
   activity('start',{version:VERSION,phase:plan.phase});
-  findProviderIcons();
+  if(!preview)findProviderIcons(); // preview (screenshots) keeps neutral tiles: no third-party logos
   if(!preview)createTray();
   startWindowWatcher();
   setInterval(scan,2000);setInterval(tick,300);

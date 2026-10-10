@@ -1,0 +1,61 @@
+name: Bug report
+description: Something doesn't work as expected
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this! Please don't attach transcripts, Claude/Codex settings files or anything containing personal paths.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: For example, "the plan kept waiting although nothing was running" or "it slept while Codex was still working".
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Start a Codex chat in the app
+        2. Arm "After AI finishes → Sleep"
+        3. …
+  - type: dropdown
+    id: source
+    attributes:
+      label: Which AI tool was involved?
+      multiple: true
+      options:
+        - Claude Code (desktop app)
+        - Claude Code (terminal / IDE)
+        - Codex (app)
+        - Codex (terminal / IDE)
+        - None, a timer plan
+        - Other
+  - type: textarea
+    id: summary
+    attributes:
+      label: Status summary
+      description: Settings → About → **Copy status summary**, then paste it here. It contains no chat names or private paths.
+      render: json
+  - type: input
+    id: version
+    attributes:
+      label: Quiet AI version
+      placeholder: "4.2.0 (shown in Settings → About)"
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: Windows 11 24H2 / macOS 15.1
+    validations:
+      required: true
