@@ -229,6 +229,12 @@ public static class EventLog
                             if (string.IsNullOrEmpty(id)) id = Guid.NewGuid().ToString("N");
                             state.Work["cron:" + id] = new($"Claude:{state.Path}:cron:{id}", "Claude", session, "Scheduled wakeup", WorkStatus.Scheduled, "A Claude scheduled wakeup is still registered.", when);
                         }
+                        // Subagents that ran inside the turn (foreground) may report tool events but never a
+                        // SubagentStop. The root Stop's registry lists everything still running in the
+                        // background, so any other subagent of this session has finished.
+                        var stillRunning = background.EnumerateArray().Where(task => Text(task, "status") is not ("completed" or "failed" or "cancelled"))
+                            .Select(task => Text(task, "id")).Where(id => id.Length > 0).ToHashSet(StringComparer.Ordinal);
+                        foreach (var old in state.Work.Keys.Where(k => k.StartsWith("agent:", StringComparison.Ordinal) && !stillRunning.Contains(k[6..])).ToArray()) state.Work.Remove(old);
                     }
                 }
             }
