@@ -34,6 +34,8 @@ Quiet AI 4.2.3 was checked on an Apple silicon Mac (macOS 15.5):
 - The packaged app, run on real data, finds the Codex and Claude folders automatically, shows both app icons, connects to Codex, and lists a running Claude Code session from its live status.
 - End-to-end suite (`tests/e2e`, real app with a fake monitor and a recording power module): 148/148 on macOS. This includes the menu-bar icon and menu, closing to the menu bar, reopening from the Dock, the armed-quit prompt, the countdown banner, cancelling, and the action firing once.
 - Main-process tests: `node --test tests/desktop/*.test.cjs`, 15/15.
+- A real power action: a timer plan with **Display sleep** ran through the countdown, and macOS logged the display turning off at the moment Quiet AI acted. The countdown notification posted without error.
+- **Update now** on a Mac: an older copy found the newest GitHub release, downloaded it, checked it against SHA256SUMS.txt, quit, swapped its app bundle in place (signature still valid) and reopened.
 - An earlier native session on the same Mac also covered a live Codex chat and a Claude Code session going 0 → 1 → 0, and a timer plan running to completion with the power action recorded instead of performed.
 
-Not yet verified: a real sleep/shut down/restart triggered by Quiet AI, notification delivery from the signed app (macOS asks for permission on first use), multiple displays, an Intel Mac itself, and **Update now** installing a new version on a Mac.
+Not yet verified: Sleep, Shut down and Restart triggered by Quiet AI (they use the same path as Display sleep; Shut down and Restart may ask for Automation permission the first time), multiple displays, and an Intel Mac itself.
