@@ -10,7 +10,12 @@ namespace QuietAI.Core;
 // A file only counts while its process is alive (and, on Windows, is the same process).
 internal static class ClaudeLiveSessions
 {
-    public sealed record Session(string Id, string Name, string Status, string WaitingFor, DateTime UpdatedUtc);
+    public sealed record Session(string Id, string Name, string Status, string WaitingFor, DateTime UpdatedUtc)
+    {
+        // Ignore heartbeat-only/name rewrites when the provider supplies a status timestamp.
+        // Without one, UpdatedUtc falls back to mtime and intentionally errs on resurfacing.
+        public string ActivityToken { get; init; } = "";
+    }
 
     public static IReadOnlyList<Session> Read(string claudeHome)
     {
@@ -32,7 +37,8 @@ internal static class ClaudeLiveSessions
                     if (id.Length == 0 || !root.TryGetProperty("pid", out var pidValue) || !pidValue.TryGetInt32(out var pid)) continue;
                     if (!Alive(pid, Text(root, "procStart"))) continue;
                     var updated = root.TryGetProperty("statusUpdatedAt", out var at) && at.TryGetInt64(out var ms) ? DateTimeOffset.FromUnixTimeMilliseconds(ms).UtcDateTime : info.LastWriteTimeUtc;
-                    result.Add(new(id, Text(root, "name"), Text(root, "status"), Text(root, "waitingFor"), updated));
+                    result.Add(new(id, Text(root, "name"), Text(root, "status"), Text(root, "waitingFor"), updated)
+                    { ActivityToken = $"{pid}:{Text(root, "procStart")}:{updated.Ticks}:{Text(root, "status")}:{Text(root, "waitingFor")}" });
                 }
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException or ArgumentException) { }
             }

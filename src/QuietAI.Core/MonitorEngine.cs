@@ -66,7 +66,7 @@ public sealed class MonitorEngine
                 }, token);
                 var title = titles.TryGetValue(id, out var label) ? label : "Chat " + (id.Length > 10 ? id[..10] : id);
                 work.AddRange(state.Work.Values.Where(item => !options.ExcludedWork.Contains(item.Key)).Select(item => item with
-                { Session = id, ChatTitle = title, IsBackground = state.IsSubagent }));
+                { Session = id, ChatTitle = title, IsBackground = state.IsSubagent, ActivityToken = EventLog.ActivityToken(state) }));
                 if (state.SeenModelWork && !state.SeenLifecycle)
                 {
                     var unsupported = EventLog.Issue(state, "unsupported-schema:" + state.Offset, "A live chat has no supported turn status. Its running state cannot be verified.");
@@ -129,7 +129,8 @@ public sealed class MonitorEngine
                 }, cancellationToken);
                 work.AddRange(state.Work.Where(entry => !options.ExcludedWork.Contains(entry.Value.Key)).Select(entry => entry.Value with
                 { IsBackground = !entry.Key.StartsWith("prompt:", StringComparison.Ordinal),
-                  ChatTitle = entry.Value.ChatTitle.Length > 0 ? entry.Value.ChatTitle : "Claude chat " + (entry.Value.Session.Length > 10 ? entry.Value.Session[..10] : entry.Value.Session) }));
+                  ChatTitle = entry.Value.ChatTitle.Length > 0 ? entry.Value.ChatTitle : "Claude chat " + (entry.Value.Session.Length > 10 ? entry.Value.Session[..10] : entry.Value.Session),
+                  ActivityToken = EventLog.ActivityToken(state) }));
                 if (provider == "Codex" && state.SeenModelWork && !state.SeenLifecycle)
                 {
                     var unsupported = EventLog.Issue(state, "unsupported-schema:" + state.Offset, "This session contains model work but no supported lifecycle events. Review its state or update the integration.");
@@ -183,15 +184,18 @@ public sealed class MonitorEngine
             var waiting = session.Status == "waiting";
             work.Add(new(key, "Claude", session.Id, waiting ? "Claude Code · waiting for you" : "Claude Code · working", WorkStatus.Running,
                 waiting ? "Claude Code is waiting (" + (session.WaitingFor.Length > 0 ? session.WaitingFor : "input") + ") before it can finish." : "Claude Code reports this session as busy.", session.UpdatedUtc)
-                { IsBackground = false });
+                { IsBackground = false, ActivityToken = "live:" + session.ActivityToken });
         }
         var fingerprint = string.Join("\n", live.Where(ClaudeLiveSessions.Working).Select(s => s.Id + ":" + s.Status).Order());
         if (_lastClaudeLive != fingerprint) { _lastClaudeLive = fingerprint; _revision++; }
         if (work.Count == 0) return work;
         var names = new Dictionary<string, string>(ClaudeChatNames.Read(options.ClaudeHome, work.Select(item => item.Session).Distinct()), StringComparer.OrdinalIgnoreCase);
         foreach (var session in live.Where(s => s.Name.Length > 0)) names[session.Id] = session.Name;
-        return work.Select(item => names.TryGetValue(item.Session, out var name) ? item with { ChatTitle = name }
-            : item.ChatTitle.Length > 0 ? item : item with { ChatTitle = "Claude chat " + (item.Session.Length > 10 ? item.Session[..10] : item.Session) }).ToList();
+        return work.Select(item => item with
+        {
+            ChatTitle = names.TryGetValue(item.Session, out var name) ? name : item.ChatTitle.Length > 0 ? item.ChatTitle : "Claude chat " + (item.Session.Length > 10 ? item.Session[..10] : item.Session),
+            ActivityToken = item.ActivityToken.Length == 0 ? "" : item.ActivityToken + "|" + (liveById.TryGetValue(item.Session, out var session) ? session.ActivityToken : "no-live")
+        }).ToList();
     }
 
     public void SaveCache()

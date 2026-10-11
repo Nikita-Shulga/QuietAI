@@ -210,7 +210,12 @@ function render(state){
       const t=document.createElement('span');t.className='title';t.textContent=chat.title;t.title=chat.title;
       const s=document.createElement('span');s.className='time';s.dataset.since=chat.startedUtc||'';
       const live=document.createElement('i');live.className='live';
-      li.append(icon,t,s,live);list.append(li);
+      const actions=document.createElement('button');actions.className='chat-actions';actions.type='button';actions.textContent='⋯';actions.setAttribute('aria-label','Actions for '+chat.title);actions.setAttribute('aria-haspopup','menu');
+      const openMenu=()=>{const selected=current?.snapshot?.chats?.find(c=>c.provider===chat.provider&&c.session===chat.session);if(selected)command('chatMenu',{provider:selected.provider,session:selected.session,token:selected.dismissToken||''});};
+      actions.addEventListener('click',openMenu);
+      li.addEventListener('contextmenu',e=>{e.preventDefault();openMenu();});
+      li.addEventListener('keydown',e=>{if(e.key==='ContextMenu'||(e.shiftKey&&e.key==='F10')){e.preventDefault();e.stopPropagation();openMenu();}});
+      li.append(icon,t,s,live,actions);list.append(li);
     }
     if(!items.length){
       const li=document.createElement('li');li.className='empty';
@@ -220,6 +225,10 @@ function render(state){
     }
   }
   for(const n of list.querySelectorAll('.time'))n.textContent=since(n.dataset.since);
+  const dismissed=state.dismissed?.count||0;
+  $('dismissed-work').classList.toggle('hidden',!dismissed);
+  text('dismissed-count',plural(dismissed,'entry dismissed','entries dismissed')+' · No longer blocking AI plans');
+  $('restore-dismissed').disabled=!!state.dismissed?.reviewing;
 
   // Plan
   $('plan').classList.toggle('locked',active);
@@ -354,3 +363,5 @@ document.querySelectorAll('[data-open-settings]').forEach(b=>b.addEventListener(
 $('close-settings').addEventListener('click',()=>openSettings(false));
 document.querySelectorAll('#theme-seg [data-theme]').forEach(b=>b.addEventListener('click',()=>{if(current?.settings.theme!==b.dataset.theme)command('theme',{theme:b.dataset.theme});}));
 window.quiet.subscribe(render);command('state');
+
+$('restore-dismissed').addEventListener('click',()=>command('restoreDismissed'));
