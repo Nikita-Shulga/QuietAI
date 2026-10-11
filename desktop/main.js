@@ -80,15 +80,15 @@ function logActivity(){
 
 // ——— Is someone using the computer? ———
 // Seconds since the last mouse/keyboard/touch input, from the OS (GetLastInputInfo on Windows).
-function userIdleMs(){try{return powerMonitor.getSystemIdleTime()*1000;}catch{return Number.POSITIVE_INFINITY;}}
+function userIdleMs(){try{const seconds=powerMonitor.getSystemIdleTime();return typeof seconds==='number'&&Number.isFinite(seconds)&&seconds>=0?seconds*1000:null;}catch{return null;}}
 function awayMs(){return (Number(settings.awayMinutes)||10)*60000;}
 // The window floats on top only during the final countdown, and a countdown banner
 // appears on top of everything on every screen (so it's seen whichever monitor you look at).
-let onTop=false,overlays=[];
+let onTop=false,overlays=[],countdownNotification=null;
 function syncOnTop(){
   const want=plan.phase==='countdown';
   if(want===onTop||!window||window.isDestroyed())return;
-  onTop=want;window.setAlwaysOnTop(want,'screen-saver');if(!want){window.flashFrame(false);closeOverlays();}
+  onTop=want;window.setAlwaysOnTop(want,'screen-saver');if(!want){window.flashFrame(false);closeOverlays();dismissCountdownNotification();}
 }
 function showOverlays(){
   closeOverlays();
@@ -97,7 +97,7 @@ function showOverlays(){
   for(const display of screen.getAllDisplays()){
     const area=display.workArea,W=Math.min(560,area.width-40),H=120;
     const o=new BrowserWindow({x:Math.round(area.x+(area.width-W)/2),y:Math.round(area.y+Math.max(24,area.height*0.12)),width:W,height:H,frame:false,resizable:false,movable:false,minimizable:false,maximizable:false,fullscreenable:false,skipTaskbar:true,alwaysOnTop:true,focusable:false,show:false,backgroundColor:'#121214',title:'Quiet AI countdown',webPreferences:{preload:path.join(__dirname,'preload.js'),contextIsolation:true,sandbox:true,nodeIntegration:false}});
-    o.setAlwaysOnTop(true,'screen-saver');o.setVisibleOnAllWorkspaces?.(true);o.on('page-title-updated',e=>e.preventDefault());
+    o.setAlwaysOnTop(true,'screen-saver');o.setVisibleOnAllWorkspaces?.(true,{visibleOnFullScreen:true});o.on('page-title-updated',e=>e.preventDefault());
     o.webContents.setWindowOpenHandler(()=>({action:'deny'}));o.webContents.on('will-navigate',e=>e.preventDefault());
     o.loadFile(path.join(__dirname,'countdown.html'));
     o.once('ready-to-show',()=>{if(!o.isDestroyed()){o.showInactive();o.moveTop();}});
@@ -110,7 +110,7 @@ function closeOverlays(){for(const o of overlays.splice(0))try{if(!o.isDestroyed
 // ——— System tray ———
 // Minimizing hides the window to the tray (notification area); the tray icon shows the plan
 // status on hover, opens the window on click, and has Open / Stop plan / Quit on right-click.
-let tray=null,trayTip='';
+let tray=null,trayTip='',trayMenuKey='';
 function showWindow(){
   if(!window||window.isDestroyed())return;
   if(window.isMinimized())window.restore();
@@ -121,8 +121,10 @@ function hideToTray(){
   if(!tray){window.minimize();return;}
   window.hide();
   if(!settings.trayHintShown){
-    settings.trayHintShown=true;save();
-    if(Notification.isSupported()){const note=new Notification({title:'Quiet AI is still running',body:'It’s in the tray now. Click its icon to open it again.',silent:true});note.on('click',showWindow);note.show();}
+    if(Notification.isSupported()){
+      const note=new Notification({title:'Quiet AI is still running',body:process.platform==='darwin'?'It’s in the menu bar now. Choose Open Quiet AI from its icon, or reopen it from the Dock.':'It’s in the tray now. Click its icon to open it again.',silent:true});
+      note.on('show',()=>{settings.trayHintShown=true;save();});note.on('failed',(_event,reason)=>activity('notification-failed',{kind:'tray-hint',reason:String(reason||'').slice(0,200)}));note.on('click',showWindow);note.show();
+    }
   }
 }
 function trayStatus(){
@@ -130,7 +132,7 @@ function trayStatus(){
   const chats=snapshot?.chatCount||0;
   const name=power.names[settings.action]||settings.action;
   switch(plan.phase){
-    case 'countdown':return name+' in '+left()+' — click to cancel';
+    case 'countdown':return name+' in '+left()+(process.platform==='darwin'?' — open menu to cancel':' — open to cancel');
     case 'timer':return plan.present?'Time’s up — waiting for you to step away':name+' in '+left();
     case 'idle':return plan.present?'AI is done — waiting for you to step away':'All quiet — confirming';
     case 'waiting':return chats?chats+(chats===1?' chat':' chats')+' running — armed':'Armed, waiting';
@@ -142,27 +144,33 @@ function syncTray(){
   if(!tray)return;
   const tip='Quiet AI — '+trayStatus();
   if(tip!==trayTip){trayTip=tip;try{tray.setToolTip(tip);}catch{}}
+  if(process.platform!=='win32'&&process.platform!=='darwin'){
+    const key=JSON.stringify([plan.phase,active()]);
+    if(key!==trayMenuKey){trayMenuKey=key;tray.setContextMenu(trayMenu());}
+  }
 }
 function trayMenu(){
   return Menu.buildFromTemplate([
+    ...(process.platform==='darwin'?[{label:trayStatus(),enabled:false},{type:'separator'}]:[]),
     {label:'Open Quiet AI',click:showWindow},
     {label:plan.phase==='countdown'?'Cancel countdown':'Stop plan',enabled:active()&&plan.phase!=='executing',click:()=>{reset();message='Plan stopped. No power action is scheduled.';broadcast();}},
     {type:'separator'},
-    {label:'Quit Quiet AI',click:()=>{if(window&&!window.isDestroyed())window.close();else app.quit();}} // closing asks first if a plan is armed
+    {label:'Quit Quiet AI',click:()=>app.quit()}
   ]);
 }
 function createTray(){
   try{
-    const file=path.join(__dirname,process.platform==='win32'?'icon.ico':'icon.png');
+    const file=path.join(__dirname,process.platform==='darwin'?'trayTemplate.png':process.platform==='win32'?'icon.ico':'icon.png');
     let image=nativeImage.createFromPath(file);
     if(image.isEmpty())return;
-    if(process.platform!=='win32')image=image.resize({width:process.platform==='darwin'?18:22,height:process.platform==='darwin'?18:22,quality:'best'});
+    if(process.platform!=='win32'&&process.platform!=='darwin')image=image.resize({width:22,height:22,quality:'best'});
+    if(process.platform==='darwin')image.setTemplateImage(true);
     tray=new Tray(image);
     if(process.env.QUIETAI_TEST_HOOKS)global.__quietTray={tray,menu:trayMenu,tip:()=>trayTip};
     tray.setToolTip('Quiet AI');
-    tray.on('click',()=>{if(window.isVisible()&&!window.isMinimized())hideToTray();else showWindow();});
+    tray.on('click',()=>{if(process.platform==='darwin')tray.popUpContextMenu(trayMenu());else if(window.isVisible()&&!window.isMinimized())hideToTray();else showWindow();});
     tray.on('right-click',()=>tray.popUpContextMenu(trayMenu()));
-    if(process.platform!=='win32')tray.setContextMenu(trayMenu()); // Linux/macOS show it on click
+    if(process.platform!=='win32'&&process.platform!=='darwin')tray.setContextMenu(trayMenu());
   }catch{tray=null;}
 }
 function announceCountdown(){
@@ -172,8 +180,11 @@ function announceCountdown(){
   window.setAlwaysOnTop(true,'screen-saver');window.showInactive();window.moveTop();window.flashFrame(true);
   showOverlays();
   if(Notification.isSupported()){
-    const note=new Notification({title:power.names[settings.action]+' in '+settings.countdownSeconds+' seconds',body:settings.waitForAway?'Your AI has finished. Move the mouse or open Quiet AI to cancel.':'Your AI has finished. Open Quiet AI to cancel.',silent:false});
-    note.on('click',showWindow);note.show();
+    const finished=plan.timer?'Your timer has finished.':'Your AI has finished.';
+    const note=new Notification({title:power.names[settings.action]+' in '+settings.countdownSeconds+' seconds',body:finished+(settings.waitForAway?' Move the mouse or click this notification to cancel.':' Click this notification to cancel.'),silent:false});
+    countdownNotification=note;
+    note.on('failed',(_event,reason)=>activity('notification-failed',{kind:'countdown',reason:String(reason||'').slice(0,200)}));
+    note.on('click',()=>{if(plan.phase==='countdown'){reset();message='Countdown cancelled. No power action is scheduled.';broadcast();}showWindow();});note.show();
   }
 }
 // Show the real Claude and Codex icons by reading them from the apps installed
@@ -183,7 +194,7 @@ function iconFromFile(file){
   try{if(!fs.existsSync(file))return null;const image=nativeImage.createFromPath(file);return image.isEmpty()?null:image.resize({width:64,height:64,quality:'best'}).toDataURL();}catch{return null;}
 }
 async function iconFromApp(file){
-  try{if(!fs.existsSync(file))return null;const image=await app.getFileIcon(file,{size:'large'});return image.isEmpty()?null:image.toDataURL();}catch{return null;}
+  try{if(!fs.existsSync(file))return null;const image=await app.getFileIcon(file,{size:process.platform==='darwin'?'normal':'large'});return image.isEmpty()?null:image.toDataURL();}catch{return null;}
 }
 function listStorePackages(){
   return new Promise(resolve=>{
@@ -232,15 +243,17 @@ async function findProviderIcons(){
     for(const [key,files] of [['claude',[path.join(local,'AnthropicClaude','claude.exe'),path.join(local,'Programs','Claude','Claude.exe')]],['codex',[path.join(local,'Programs','Codex','Codex.exe'),path.join(local,'Programs','ChatGPT','ChatGPT.exe')]]])
       for(const file of files)if(!found[key]){const url=await iconFromApp(file);if(url){found[key]={dark:url,light:url};iconReport[key]=path.basename(file);}}
   }else if(process.platform==='darwin'){
-    for(const [key,names] of [['claude',['Claude']],['codex',['Codex','ChatGPT']]])
-      for(const name of names)for(const root of ['/Applications',path.join(os.homedir(),'Applications')])
-        if(!found[key]){const url=await iconFromApp(path.join(root,name+'.app'));if(url){found[key]={dark:url,light:url};iconReport[key]=name+'.app';}}
+    const macIcons=require('./mac-icons');
+    for(const [key,names,ids] of [['claude',['Claude'],['com.anthropic.claudefordesktop']],['codex',['Codex','ChatGPT'],['com.openai.codex','com.openai.chat']]])
+      for(const bundle of await macIcons.bundles(names,ids))
+        if(!found[key]){const url=await macIcons.icon(bundle,nativeImage)||await iconFromApp(bundle);if(url){found[key]={dark:url,light:url,plateOnLight:mostlyWhite(url)};iconReport[key]=path.basename(bundle);}}
   }
   for(const key of ['codex','claude'])if(!found[key])iconReport[key]='not found';
   providerIcons=found;broadcast();
 }
 function broadcast(){syncBlocker();syncOnTop();syncTray();logActivity();const st=state();if(window&&!window.isDestroyed())window.webContents.send('quiet:state',st);for(const o of overlays)if(!o.isDestroyed())o.webContents.send('quiet:state',st);}
-function reset(){plan={phase:'disarmed',until:null,started:null};lastRevision=null;}
+function reset(){plan={phase:'disarmed',until:null,started:null};lastRevision=null;dismissCountdownNotification();}
+function dismissCountdownNotification(){try{countdownNotification?.close();}catch{}countdownNotification=null;}
 async function scan(){
   if(busy||preview)return;
   busy=true; broadcast();
@@ -509,21 +522,28 @@ function applyWindows(snap){
 }
 let lastWindowSig='',windowRevision=0;
 let actionInProgress=false;
+function waitForPresence(unavailable=false){
+  dismissCountdownNotification();
+  const timer=plan.timer;
+  plan=timer?{phase:'timer',started:plan.started,until:Date.now(),present:true}:{phase:'idle',started:Date.now(),until:Date.now()+awayMs(),present:true};
+  message=unavailable?'Quiet AI can’t verify keyboard or mouse inactivity, so the plan is waiting.':'You’re using the computer, so Quiet AI will wait until you step away.';
+  broadcast();
+}
 async function tick(){
   if(actionInProgress)return;
-  // Someone touched the mouse or keyboard during the final countdown: don't act under them.
-  if(plan.phase==='countdown'&&settings.waitForAway&&userIdleMs()+400<Date.now()-plan.started){
-    const timer=plan.timer;
-    plan=timer?{phase:'timer',started:plan.started,until:Date.now(),present:true}:{phase:'idle',started:Date.now(),until:Date.now()+awayMs(),present:true};
-    message='You’re using the computer, so Quiet AI will wait until you step away.';
-    broadcast();return;
+  const idle=settings.waitForAway?userIdleMs():null;
+  if(active()&&settings.waitForAway&&idle===null){
+    if(plan.phase==='countdown')waitForPresence(true);
+    else{message='Quiet AI can’t verify keyboard or mouse inactivity, so the plan is waiting.';broadcast();}
+    return;
   }
+  // Someone touched the mouse or keyboard during the final countdown: don't act under them.
+  if(plan.phase==='countdown'&&settings.waitForAway&&idle+400<Date.now()-plan.started){waitForPresence();return;}
   if(plan.until&&Date.now()>=plan.until){
     if(plan.phase==='timer'||plan.phase==='idle'){
       if(plan.phase==='idle'&&(busy||error||!snapshot?.clear))return;
       // Only act once nobody has used the mouse or keyboard for the quiet period.
       if(settings.waitForAway){
-        const idle=userIdleMs();
         if(idle<awayMs()){plan={...plan,until:Date.now()+Math.max(1000,awayMs()-idle),present:true};broadcast();return;}
       }
       plan={phase:'countdown',started:Date.now(),until:Date.now()+settings.countdownSeconds*1000,timer:settings.scheduleMode==='Timer'};announceCountdown();
@@ -532,6 +552,10 @@ async function tick(){
         if(busy)return;
         await scan();
         if(plan.phase!=='countdown'||error||!snapshot?.clear||Date.now()-Date.parse(snapshot.checkedUtc)>3000)return;
+      }
+      if(settings.waitForAway){
+        const freshIdle=userIdleMs();
+        if(freshIdle===null||freshIdle<awayMs()||freshIdle+400<Date.now()-plan.started){waitForPresence(freshIdle===null);return;}
       }
       const action=settings.action;reset(); actionInProgress=true;plan.phase='executing';broadcast();
       try{await power.perform(action);message=power.names[action]+' requested.';plan.phase='completed';}
@@ -646,13 +670,14 @@ ipcMain.handle('quiet:command',async(event,command,payload={})=>{
   throw new Error('Unknown command.');
 });
 app.on('second-instance',showWindow);
+app.on('activate',showWindow); // Dock activation must restore a window hidden in the menu bar.
 app.whenReady().then(()=>{
   if(!primaryInstance)return;
   loadSettings();
   if(preview){settings.codexEnabled=settings.claudeEnabled=true;sources={codex:{detected:true,folder:'Automatically detected',origin:'User profile'},claude:{detected:true,folder:'Automatically detected',origin:'User profile'}}; snapshot={chatCount:3,backgroundRunning:1,scheduled:0,uncertain:0,clear:false,checkedUtc:new Date().toISOString(),chats:[{provider:'Codex',title:'Build the next release',session:'demo-1',startedUtc:new Date(Date.now()-23*60000).toISOString()},{provider:'Codex',title:'Polish the settings experience',session:'demo-2',startedUtc:new Date(Date.now()-7*60000).toISOString()},{provider:'Claude',title:'Review the documentation',session:'demo-3',startedUtc:new Date(Date.now()-64*60000).toISOString()}],codex:{enabled:true,connected:true,chatCount:2,detail:'Local sessions connected.'},claude:{enabled:true,connected:true,chatCount:1,detail:'Lifecycle hooks connected.'},work:[]};}
   const executable=path.join(__dirname,'agent',process.platform==='win32'?'QuietAI.Agent.exe':'QuietAI.Agent');
   agent=new Agent(executable,stateRoot);
-  Menu.setApplicationMenu(process.platform==='darwin'?Menu.buildFromTemplate([{label:'Quiet AI',submenu:[{role:'about'},{type:'separator'},{role:'quit'}]},{label:'Edit',submenu:[{role:'copy'},{role:'paste'},{role:'selectAll'}]}]):null);
+  Menu.setApplicationMenu(process.platform==='darwin'?Menu.buildFromTemplate([{label:'Quiet AI',submenu:[{role:'about'},{type:'separator'},{role:'hide'},{role:'hideOthers'},{role:'unhide'},{type:'separator'},{role:'quit'}]},{label:'Edit',submenu:[{role:'copy'},{role:'paste'},{role:'selectAll'}]},{label:'Window',submenu:[{label:'Open Quiet AI',accelerator:'CmdOrCtrl+Shift+O',click:showWindow},{role:'minimize'},{role:'front'}]}]):null);
   window=new BrowserWindow({title:'Quiet AI',width:460,height:690,minWidth:420,minHeight:640,maximizable:false,fullscreenable:false,show:false,backgroundColor:themeBackground(),frame:process.platform==='darwin',titleBarStyle:process.platform==='darwin'?'hiddenInset':undefined,trafficLightPosition:{x:16,y:15},icon:path.join(__dirname,'icon.png'),webPreferences:{preload:path.join(__dirname,'preload.js'),nodeIntegration:false,contextIsolation:true,sandbox:true}});
   nativeTheme.on('updated',()=>{if(window&&!window.isDestroyed())window.setBackgroundColor(themeBackground());broadcast();});
   window.webContents.setWindowOpenHandler(()=>({action:'deny'}));
@@ -667,7 +692,8 @@ app.whenReady().then(()=>{
   });
   window.on('minimize',()=>{if(settings.minimizeToTray&&tray)setImmediate(hideToTray);}); // taskbar / Win+Down minimize
   window.on('close',event=>{
-    if(active()&&plan.phase!=='executing'&&!process.argv.includes('--capture')){
+    if(!quitting&&process.platform==='darwin'&&settings.minimizeToTray&&tray&&!process.argv.includes('--capture')){event.preventDefault();hideToTray();return;}
+    if(!quitting&&active()&&plan.phase!=='executing'&&!process.argv.includes('--capture')){
       showWindow();
       const choice=dialog.showMessageBoxSync(window,{type:'question',buttons:['Keep running','Quit and cancel plan'],defaultId:0,cancelId:0,title:'Quiet AI',message:'Quit Quiet AI?',detail:'Your plan is still running. Quitting cancels it, and the computer will stay on.'});
       if(choice===0){event.preventDefault();return;}
@@ -686,4 +712,11 @@ app.whenReady().then(()=>{
 });
 app.on('window-all-closed',()=>app.quit());
 app.on('will-quit',()=>{try{tray?.destroy();}catch{}tray=null;});
-app.on('before-quit',()=>{quitting=true;reset();syncBlocker();agent?.close();try{windowWatcher?.kill();}catch{}});
+app.on('before-quit',event=>{
+  if(active()&&plan.phase!=='executing'&&!process.argv.includes('--capture')&&window&&!window.isDestroyed()){
+    showWindow();
+    const choice=dialog.showMessageBoxSync(window,{type:'question',buttons:['Keep running','Quit and cancel plan'],defaultId:0,cancelId:0,title:'Quiet AI',message:'Quit Quiet AI?',detail:'Your plan is still running. Quitting cancels it, and the computer will stay on.'});
+    if(choice===0){event.preventDefault();return;}
+  }
+  quitting=true;reset();syncBlocker();agent?.close();try{windowWatcher?.kill();}catch{}
+});

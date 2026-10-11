@@ -40,8 +40,30 @@ def render(size):
 def chunk(kind, data):
     return struct.pack('>I', len(data)) + kind + data + struct.pack('>I', zlib.crc32(kind + data))
 
+def render_tray(size):
+    """The same sunset mark without its plate, for a macOS template image."""
+    rows = bytearray()
+    for y in range(size):
+        rows.append(0)
+        for x in range(size):
+            covered = 0
+            for ox, oy in ((.25, .25), (.75, .25), (.25, .75), (.75, .75)):
+                px, py = 96 + (x + ox) * 320 / size, 116 + (y + oy) * 320 / size
+                inside = py <= 278 and math.hypot(px - 256, py - 316) <= 128
+                for y0, x0, x1 in ((300, 112, 400), (334, 176, 336)):
+                    closest = max(x0, min(x1, px))
+                    inside |= math.hypot(px - closest, py - y0) <= 8
+                covered += inside
+            rows.extend((0, 0, 0, round(covered * 255 / 4)))
+    return b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', size, size, 8, 6, 0, 0, 0)) + chunk(b'IDAT', zlib.compress(rows, 9)) + chunk(b'IEND', b'')
+
 if __name__ == '__main__':
     target = Path(__file__).resolve().parent.parent / 'desktop'
+    (target / 'trayTemplate.png').write_bytes(render_tray(18))
+    (target / 'trayTemplate@2x.png').write_bytes(render_tray(36))
+    import sys
+    if '--tray-only' in sys.argv:
+        sys.exit(0)
     large, small = render(512), render(256)
     (target / 'icon.png').write_bytes(large)
     # Windows picks the closest size for each place (title bar 16-24, taskbar 32-48, Explorer 48-256).
