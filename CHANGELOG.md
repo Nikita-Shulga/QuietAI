@@ -1,5 +1,9 @@
 # Changelog
 
+## Quiet AI 4.2.5
+
+- Mac: Codex now shows the OpenAI logo, the icon the Codex app declares, the same as on Windows. It used to pick the app's secondary Codex artwork.
+
 ## Quiet AI 4.2.4
 
 - Fixed: **Update now** could fail with "ENOENT … unpacked" when clicked within about 15 seconds of opening Quiet AI. The start-up cleanup of leftover update folders removed the folder of the download in progress. The cleanup now skips while an update is running. Affects Windows and Mac.
