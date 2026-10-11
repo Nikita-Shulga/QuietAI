@@ -25,7 +25,7 @@
 
 You start a long **Claude Code** or **Codex** run before bed, or before you leave. You don't want the computer on all night, and you can't shut it down halfway through.
 
-**Quiet AI waits until every prompt has finished, waits a little longer to be sure, gives you a countdown to cancel, and then sleeps, shuts down, hibernates or restarts the computer.** If it can't verify that something is finished, it keeps waiting.
+**Quiet AI waits until every prompt has finished, waits a little longer to be sure, gives you a countdown to cancel, and then sleeps, shuts down, hibernates or restarts the computer.** If it can't verify that something is finished, it keeps waiting. You can explicitly dismiss a stale, verified running-chat entry after a warning; its current prompts then stop blocking AI-based power plans.
 
 <p align="center">
   <picture>
@@ -71,6 +71,12 @@ Get them from the **[latest release](https://github.com/Nikita-Shulga/QuietAI/re
 
 > [!TIP]
 > Restart Claude Code sessions that were already open when you connected, so they load the hook. Quiet AI still sees them in the meantime through Claude Code's live session status.
+
+### Reviewing a stale running entry
+
+Right-click a running chat, or focus its **⋯** action and press Enter/Space (Shift+F10 also opens its native menu). **Dismiss current prompts…** requires checking the explicit acknowledgment and confirming: the selected chat's current prompts will no longer block an AI-based power plan even if the agent is still working. It never stops the agent or deletes its records.
+
+The dismissed count and **Restore** stay visible below the list. New observed log activity or a live-status change brings the entry back; restarting Quiet AI clears all dismissals. Background tasks, scheduled work, unknown states and app-window-only activity cannot be dismissed this way. Reviewing an entry restarts a pending AI quiet period/countdown; a timer already in its final countdown is cancelled for safety. See [the detection rules](docs/DETECTION.md#manual-review-overrides).
 
 ## How it works
 

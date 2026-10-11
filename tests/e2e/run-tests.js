@@ -364,6 +364,47 @@ const settingsFile=()=>JSON.parse(fs.readFileSync(path.join(profile,'settings.js
   check('Timer action requested',await waitFor(()=>logLines().some(l=>l.power==='Lock'),6000));
   await pick('scheduleMode','After AI finishes');
 
+  // Manual review: real main/renderer/IPC; native menu/dialog selections recorded.
+  // Power remains the record-only module for the entire harness.
+  {
+    const {snapshot:roots,item:root}=require('../desktop/dismissal-fixtures.cjs');
+    await page.evaluate(()=>window.quiet.command('stop'));
+    await page.evaluate(()=>window.quiet.command('update',{watchWindows:false,waitForAway:false,scheduleMode:'Codex',codexEnabled:true,claudeEnabled:true}));
+    const powerBefore=logLines().filter(l=>l.power).length;
+    await eapp.evaluate(({Menu,dialog})=>{
+      const build=Menu.buildFromTemplate.bind(Menu);
+      Menu.buildFromTemplate=template=>{const menu=build(template);if(template[0]?.label==='Dismiss current prompts…')menu.popup=()=>{global.__chatMenu=menu;};return menu;};
+      global.__manualChoice=0;global.__manualAck=false;global.__manualDialogs=[];
+      dialog.showMessageBox=async(_window,options)=>{global.__manualDialogs.push(options);return{response:global.__manualChoice,checkboxChecked:global.__manualAck};};
+    });
+    const openRowMenu=async()=>{await page.locator('#chat-list li').first().click({button:'right'});return waitFor(()=>eapp.evaluate(()=>!!global.__chatMenu),3000);};
+    const selectDismiss=()=>eapp.evaluate(()=>global.__chatMenu.items[0].click());
+    setControl({snapshot:roots()});
+    check('Manual review: verified root row offers an accessible action',await waitFor(async()=>(await mainState()).snapshot.chats[0]?.dismissible,5000)&&await page.locator('.chat-actions').first().getAttribute('aria-haspopup')==='menu');
+    await openRowMenu();check('Manual review: native contextual menu enables current prompt dismissal',await eapp.evaluate(()=>global.__chatMenu.items[0].enabled));
+    await selectDismiss();
+    check('Manual review: warning defaults to Cancel',await waitFor(()=>eapp.evaluate(()=>global.__manualDialogs.length>0),3000)&&await eapp.evaluate(()=>global.__manualDialogs.at(-1).defaultId===0&&global.__manualDialogs.at(-1).cancelId===0));
+    check('Manual review: Cancel retains the blocker',(await mainState()).dismissed.count===0&&(await mainState()).snapshot.clear===false);
+    await eapp.evaluate(()=>{global.__manualChoice=1;global.__manualAck=false;global.__chatMenu=null;});await openRowMenu();await selectDismiss();
+    check('Manual review: a native Dismiss/Return response without acknowledgment keeps blockers',await waitFor(async()=>(await mainState()).message.includes('Nothing was dismissed'),3000)&&(await mainState()).dismissed.count===0&&(await mainState()).snapshot.clear===false);
+    await eapp.evaluate(()=>{global.__manualChoice=1;global.__manualAck=true;global.__chatMenu=null;});await openRowMenu();await selectDismiss();
+    check('Manual review: confirmed current root hidden with visible Restore',await waitFor(async()=>(await mainState()).dismissed.count===1,5000)&&await page.locator('#dismissed-work').isVisible()&&(await mainState()).snapshot.clear===true);
+    await sleep(2500);check('Manual review: unchanged periodic scan preserves dismissal',(await mainState()).dismissed.count===1&&(await mainState()).snapshot.chatCount===0);
+    await page.locator('#restore-dismissed').click();
+    check('Manual review: Restore returns current running blocker',await waitFor(async()=>(await mainState()).dismissed.count===0&&(await mainState()).snapshot.chatCount===1,3000));
+    // Context-menu keyboard key uses the same IPC and native menu.
+    await eapp.evaluate(()=>{global.__chatMenu=null;});await page.locator('.chat-actions').first().focus();await page.keyboard.press('Shift+F10');
+    check('Manual review: keyboard opens the same native menu',await waitFor(()=>eapp.evaluate(()=>!!global.__chatMenu),3000));
+    await selectDismiss();await waitFor(async()=>(await mainState()).dismissed.count===1,3000);
+    setControl({snapshot:roots([root('Codex','one',undefined,{activityToken:'generation:2'})])});
+    check('Manual review: new same-key observed activity restores the blocker',await waitFor(async()=>(await mainState()).dismissed.count===0&&(await mainState()).snapshot.chatCount===1,5000));
+    check('Manual review: never requests extra power',logLines().filter(l=>l.power).length===powerBefore);
+    await shot('manual-dismissal-restored');
+    setControl({snapshot:busyChats()});await waitFor(async()=>(await mainState()).snapshot.chatCount===3,5000);
+    // Preserve the existing suite's settings/persistence expectations.
+    await page.evaluate(()=>window.quiet.command('update',{watchWindows:true}));
+  }
+
   // 10b. Activity log (explains afterwards what a plan waited for)
   {const f=path.join(stateRoot,'quietai-activity.log');let lines=[];try{lines=fs.readFileSync(f,'utf8').trim().split('\n').map(l=>JSON.parse(l));}catch{}
    check('Activity log records plan phases',lines.some(l=>l.event==='phase'&&l.to==='countdown')&&lines.some(l=>l.event==='start'),f);

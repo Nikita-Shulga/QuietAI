@@ -24,3 +24,6 @@ Installed copies check the repository's latest GitHub Release (Settings → Abou
 4. When the workflow finishes, the release appears with all four ZIPs, and every installed copy offers the update.
 
 Don't rename the assets: the app looks for `QuietAI-<version>-<win|mac>-<x64|arm64>.zip` and verifies it against `SHA256SUMS.txt` before installing. On Windows the update replaces the files in the app's folder and restarts it; on macOS it replaces `Quiet AI.app` (which must not be running from a translocated Downloads location — move it to Applications first). If the folder isn't writable, the app opens the release page instead.
+## Manual-review regression gate
+
+All four packaging jobs run the shared main-process/DOM suite and managed activity-generation fixtures on their Windows/macOS host before packaging. jsdom is QA-only and never enters the desktop payload. The native Electron E2E suite uses fake monitoring and record-only power; it is not replaced by these tests. Require matching-platform native menu/Cancel-default warning/Restore/new-activity checks before shipping the manual-review change. Document mocked versus real-provider checks, keep Intel Mac preview caveats, and never infer full native Windows support from cloud `win32` doubles. Publishing needs the already-authorized owner account; no new credentials or permissions are required by the workflow.

@@ -29,9 +29,24 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.14'
-      - name: Main-process tests
-        if: runner.os == 'macOS'
-        run: node --test tests/desktop/*.test.cjs
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+      - name: Install QA-only DOM dependency
+        shell: bash
+        run: npm install --prefix .artifacts/qa-deps --ignore-scripts --no-audit --no-fund jsdom@27.4.0
+      - name: Main-process and DOM tests
+        shell: bash
+        env:
+          NODE_PATH: ${{ github.workspace }}/.artifacts/qa-deps/node_modules
+        run: |
+          node -e "require('jsdom')"
+          node --test tests/desktop/*.test.cjs
+      - name: Managed activity-generation fixtures
+        env:
+          DOTNET_GENERATE_ASPNET_CERTIFICATE: 'false'
+          DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+        run: dotnet run --project tests/activity-generation/ActivityGeneration.csproj --no-launch-profile
       - name: Package desktop app
         run: python scripts/build.py ${{ matrix.target }}
       - uses: actions/upload-artifact@v7

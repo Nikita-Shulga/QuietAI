@@ -5,6 +5,9 @@ public sealed record WorkItem(string Key, string Provider, string Session, strin
 {
     public bool IsBackground { get; init; }
     public string ChatTitle { get; init; } = "";
+    // Observed source generation, not a completion claim. Manual review is scoped
+    // to this activity only, so later records can never inherit a dismissal.
+    public string ActivityToken { get; init; } = "";
 }
 public sealed record RunningChat(string Provider, string Session, string Title, int PromptCount, DateTime StartedUtc);
 public sealed record ProviderSnapshot(string Name, bool Enabled, bool Connected, IReadOnlyList<WorkItem> Work, string Detail)

@@ -278,3 +278,10 @@ button:disabled{opacity:.35}
 .srow.check .ok{color:var(--green)}.srow.check .bad{color:var(--red-text)}
 .srow.check code{font:11.5px ui-monospace,"Cascadia Mono",Consolas,monospace;word-break:break-all;color:var(--text)}
 :root[data-mode="light"] .picon.plate{background:#1C1C1F;padding:2px}
+
+.chat-actions{border:0;background:transparent;color:var(--text-2);font-size:18px;line-height:1;padding:4px 6px;border-radius:5px;cursor:pointer}
+.chat-actions:hover,.chat-actions:focus-visible{background:var(--fill);color:var(--text)}
+.chat-actions:focus-visible,.dismissed-work button:focus-visible{outline:2px solid var(--text-2);outline-offset:1px}
+.dismissed-work{display:flex;align-items:center;gap:8px;padding:8px 12px;border-top:1px solid var(--line);font-size:11px;color:var(--text-2)}
+.dismissed-work span{flex:1;min-width:0}
+.dismissed-work button{background:var(--fill);color:var(--text);border:1px solid var(--line);border-radius:5px;padding:4px 7px;cursor:pointer}

@@ -1,5 +1,9 @@
 # Changelog
 
+## Quiet AI 4.2.6
+
+- Review stale running-chat entries with a native right-click menu or keyboard-accessible row action on Windows and Mac. Dismissing current prompts requires a warning, an initially unchecked acknowledgment and confirmation because they stop blocking AI-based power plans; agents keep running. New observed activity brings entries back, and a visible Restore action or app restart undoes dismissals. Unknown, background, scheduled and app-window-only activity stays protected.
+
 ## Quiet AI 4.2.5
 
 - Mac: Codex now shows the OpenAI logo, the icon the Codex app declares, the same as on Windows. It used to pick the app's secondary Codex artwork.

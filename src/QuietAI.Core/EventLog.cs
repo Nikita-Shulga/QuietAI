@@ -31,6 +31,7 @@ public sealed class LogState
 public static class EventLog
 {
     private const int PrefixLimit = 16 * 1024;
+    public static string ActivityToken(LogState state) => $"{state.Offset}:{state.LengthAtScan}:{state.WriteTicks}:{state.EventIndex}";
     public static void Read(LogState state, Action<LogState, ReadOnlyMemory<byte>> consume, CancellationToken cancellationToken)
     {
         var info = new FileInfo(state.Path);

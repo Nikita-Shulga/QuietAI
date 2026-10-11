@@ -39,3 +39,7 @@ Quiet AI 4.2.3 was checked on an Apple silicon Mac (macOS 15.5):
 - An earlier native session on the same Mac also covered a live Codex chat and a Claude Code session going 0 → 1 → 0, and a timer plan running to completion with the power action recorded instead of performed.
 
 Not yet verified: Sleep, Shut down and Restart triggered by Quiet AI (they use the same path as Display sleep; Shut down and Restart may ask for Automation permission the first time), multiple displays, and an Intel Mac itself.
+
+### Manual-review update (4.2.6)
+
+The shared native row-menu/confirmation feature is covered by Node main-process tests, DOM contracts and generated-file managed fixtures. Dismissals are explicit overrides, not completion evidence; see [DETECTION.md](DETECTION.md#manual-review-overrides). The existing 4.2.3 results above remain historical and do not validate this update. New native macOS arm64 fixture results must be recorded before publishing this update. Intel remains preview; an arm64/Rosetta result does not establish behavior on Intel hardware.

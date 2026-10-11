@@ -7,6 +7,9 @@ const Agent=require('./agent');
 const {discover}=require('./discovery');
 const power=require('./power');
 const updater=require('./updater');
+const {DismissedWork,inspect}=require('./dismissed-work');
+const dismissedWork=new DismissedWork();
+let rawSnapshot=null,scanSerial=0,manualReview=false;
 const preview=process.argv.includes('--preview');
 const configRoot=process.env.QUIETAI_PROFILE || (process.platform==='win32'?path.join(process.env.LOCALAPPDATA,'QuietAI'):path.join(os.homedir(),'Library','Application Support','Quiet AI'));
 app.setPath('userData',path.join(configRoot,'desktop'));
@@ -39,7 +42,7 @@ function loadSettings(){
 function save(){if(preview)return;fs.mkdirSync(configRoot,{recursive:true});const temp=settingsPath+'.tmp';fs.writeFileSync(temp,JSON.stringify(settings,null,2));fs.renameSync(temp,settingsPath);}
 function options(){return{...settings,excludedWork:[...(settings.excludedWork||[]),...staleWork],codexSessionsOverride:sources.codex.folder,claudeHomeOverride:sources.claude.folder};}
 function active(){return ['waiting','idle','countdown','timer','executing'].includes(plan.phase);}
-function state(){return{settings,sources,snapshot,plan,error,message,busy,operation,actions:power.actions,actionNames:power.names,platform:process.platform,version:VERSION,update:updateState(),icons:providerIcons,dark:nativeTheme.shouldUseDarkColors,claudeCheck,windows:{...windows,fresh:windowsFresh(),supported:windowsSupported()}};}
+function state(){return{settings,sources,snapshot,plan,error,message,busy,operation,actions:power.actions,actionNames:power.names,platform:process.platform,version:VERSION,update:updateState(),icons:providerIcons,dark:nativeTheme.shouldUseDarkColors,claudeCheck,dismissed:{count:dismissedWork.count,reviewing:manualReview},windows:{...windows,fresh:windowsFresh(),supported:windowsSupported()}};}
 // Keep Windows/macOS from idling to sleep while a plan is armed, so the
 // computer cannot doze off in the middle of the AI's work.
 let blocker=null;
@@ -260,8 +263,8 @@ async function scan(){
   try{
     let result=await agent.request('scan',options());
     if(findStaleCodexTurns(result.snapshot))result=await agent.request('scan',options());
-    snapshot=applyWindows(normalize(result.snapshot));error='';
-    if(['waiting','idle','countdown'].includes(plan.phase)&&!plan.timer){
+    rawSnapshot=normalize(result.snapshot);snapshot=applyWindows(dismissedWork.apply(rawSnapshot));scanSerial++;error='';
+    if(!manualReview&&['waiting','idle','countdown'].includes(plan.phase)&&!plan.timer){
       const changed=lastRevision!==null&&lastRevision!==snapshot.revision;lastRevision=snapshot.revision;
       if(!snapshot.clear||changed){plan={phase:'waiting',until:null,started:null};}
       if(snapshot.clear&&plan.phase==='waiting'){plan={phase:'idle',started:Date.now(),until:Date.now()+settings.quietMinutes*60000};}
@@ -530,7 +533,7 @@ function waitForPresence(unavailable=false){
   broadcast();
 }
 async function tick(){
-  if(actionInProgress)return;
+  if(actionInProgress||manualReview)return;
   const idle=settings.waitForAway?userIdleMs():null;
   if(active()&&settings.waitForAway&&idle===null){
     if(plan.phase==='countdown')waitForPresence(true);
@@ -551,7 +554,7 @@ async function tick(){
       if(!plan.timer){
         if(busy)return;
         await scan();
-        if(plan.phase!=='countdown'||error||!snapshot?.clear||Date.now()-Date.parse(snapshot.checkedUtc)>3000)return;
+        if(manualReview||plan.phase!=='countdown'||error||!snapshot?.clear||Date.now()-Date.parse(snapshot.checkedUtc)>3000)return;
       }
       if(settings.waitForAway){
         const freshIdle=userIdleMs();
@@ -565,6 +568,60 @@ async function tick(){
   }
   broadcast();
 }
+// Manual exclusions live only in this app process. The monitor continues reading
+// every record; a changed source-generation token automatically restores the row.
+function restartManualWait(){
+  if(plan.phase==='countdown'&&plan.timer){reset();message='Timer countdown stopped while reviewing activity. Start a new timer when ready.';}
+  else if(['waiting','idle','countdown'].includes(plan.phase)&&!plan.timer){plan={phase:'waiting',until:null,started:null};lastRevision=null;dismissCountdownNotification();}
+}
+async function freshManualEntry(provider,session,token){
+  await waitForScan();const serial=scanSerial;await scan();
+  const age=Date.now()-Date.parse(rawSnapshot?.checkedUtc);
+  if(scanSerial===serial||error||!Number.isFinite(age)||age<0||age>3000)throw new Error('Current activity could not be verified. Nothing was dismissed.');
+  const entry=inspect(rawSnapshot,provider,session);
+  if(!entry||entry.token!==token)throw new Error('This entry changed. Nothing was dismissed; review its current activity and try again.');
+  return entry;
+}
+async function dismissChat(provider,session,token){
+  if(manualReview||actionInProgress||quitting)throw new Error('Activity cannot be reviewed right now.');
+  manualReview=true;restartManualWait();broadcast();
+  try{
+    const entry=await freshManualEntry(provider,session,token);
+    const choice=await dialog.showMessageBox(window,{type:'warning',title:'Dismiss running prompts?',
+      buttons:['Cancel','Dismiss current prompts'],defaultId:0,cancelId:0,noLink:true,
+      checkboxLabel:'I understand a power plan may proceed while this agent is still working',checkboxChecked:false,
+      message:'Dismiss '+entry.promptCount+' current '+provider+' prompt'+(entry.promptCount===1?'':'s')+'?',
+      detail:'These prompts will no longer block an AI-based power plan, even if the agent is still working. A pending '+(power.names[settings.action]||settings.action)+' plan may proceed after its quiet period and countdown. This does not stop the agent. New observed activity brings the entry back. Background tasks, unverified work and app-window monitoring still block the plan. Restore dismissed entries below the running list, or restart Quiet AI, to undo.'});
+    if(choice.response!==1)return;
+    // Native button-key mappings vary. Return alone must never grant this override.
+    if(choice.checkboxChecked!==true){message='Nothing was dismissed. Acknowledge the warning and choose Dismiss to confirm.';return;}
+    if(quitting||window.isDestroyed()||actionInProgress)throw new Error('Quiet AI is closing or performing an action. Nothing was dismissed.');
+    await freshManualEntry(provider,session,token);
+    dismissedWork.dismiss(rawSnapshot,provider,session,token);
+    snapshot=applyWindows(dismissedWork.apply(rawSnapshot));
+    message='Current prompts dismissed. They no longer block an AI-based power plan; the agent keeps running.';
+  }finally{restartManualWait();manualReview=false;broadcast();}
+}
+function restoreDismissed(){
+  if(manualReview||actionInProgress)throw new Error('Wait until the current review or action finishes.');
+  const count=dismissedWork.restore();
+  if(count){snapshot=applyWindows(dismissedWork.apply(rawSnapshot));restartManualWait();message='Dismissed entries restored. Current running prompts block AI-based power plans again.';}
+  broadcast();
+}
+function chatMenu(payload){
+  if(manualReview||actionInProgress)throw new Error('Activity cannot be reviewed right now.');
+  const chat=snapshot?.chats?.find(c=>c.provider===payload.provider&&c.session===payload.session);
+  if(!chat)throw new Error('This entry is no longer running.');
+  const entry=inspect(rawSnapshot,chat.provider,chat.session);
+  const allowed=!!entry&&!chat.fromWindow&&chat.dismissible===true&&payload.token===entry.token;
+  const menu=Menu.buildFromTemplate([{label:'Dismiss current prompts…',enabled:allowed,click:()=>{
+    if(!allowed)return;
+    dismissChat(chat.provider,chat.session,entry.token).catch(ex=>{message=ex.message;broadcast();});
+  }},...(!allowed?[{label:'Cannot verify individual prompt activity',enabled:false}]:[]),
+    {type:'separator'},{label:'Restore dismissed entries',enabled:dismissedWork.count>0,click:()=>{try{restoreDismissed();}catch(ex){message=ex.message;broadcast();}}}]);
+  menu.popup({window});
+}
+
 // ——— App updates ———
 // Checks GitHub Releases quietly on start and every 6 hours; installing only happens on a click,
 // and never while a plan is armed (the app restarts to finish).
@@ -625,6 +682,9 @@ ipcMain.handle('quiet:command',async(event,command,payload={})=>{
   if(command==='maximize'){window.isMaximized()?window.unmaximize():window.maximize();return;}
   if(command==='website'){shell.openExternal(WEBSITE);return state();}
   if(command==='diagnostics'){clipboard.writeText(JSON.stringify({version:VERSION,platform:process.platform,phase:plan.phase,icons:iconReport,windows:{fresh:windowsFresh(),claude:windows.claude,codex:windows.codex,error:windows.error},retiredCodexTurns:Object.values(staleReasons).reduce((a,r)=>(a[r]=(a[r]||0)+1,a),{}),claudeCheck:claudeCheck&&{found:claudeCheck.found,events:claudeCheck.events,disabled:claudeCheck.disabled,ran:claudeCheck.ran,ok:claudeCheck.ok,exitCode:claudeCheck.exitCode},providers:snapshot?{codex:{enabled:snapshot.codex.enabled,connected:snapshot.codex.connected,chats:snapshot.codex.chatCount},claude:{enabled:snapshot.claude.enabled,connected:snapshot.claude.connected,chats:snapshot.claude.chatCount}}:null},null,2));message='Status summary copied. It contains no chat names or private paths.';broadcast();return state();}
+  if(command==='chatMenu'){chatMenu(payload);return state();}
+  if(command==='restoreDismissed'){restoreDismissed();return state();}
+  if(manualReview&&!['theme','tray','releasePage'].includes(command))throw new Error('Finish reviewing the running entry first.');
   if(command==='theme'){if(THEMES.includes(payload.theme)){settings.theme=payload.theme;nativeTheme.themeSource=settings.theme;save();}broadcast();return state();}
   if(command==='checkUpdate'){await checkUpdate(true);return state();}
   if(command==='installUpdate'){await installUpdate();return state();}
