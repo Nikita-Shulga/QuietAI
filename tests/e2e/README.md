@@ -7,7 +7,7 @@ Runs the real desktop app (real `main.js`, `preload.js`, `renderer.js`) in Elect
 
 A temporary home folder with `.codex/sessions` and `.claude` is created, so automatic discovery is tested too. The app is copied to a temporary folder; the repository is not modified.
 
-Covered: startup and discovery, window buttons (including that no drag region covers them), Settings, themes (System/Light/Dark, persistence, layout), connecting/disconnecting Claude Code while the monitor is busy, install errors, folder choice and "Use automatic", Find folders again, provider switches, status summary, every plan menu, Enter/Esc, the agent plan (waiting → confirming → countdown → action, reset on new activity, last-second cancellation, cancel), timer mode, keep-awake, minimize, close confirmation, close, and settings surviving a restart.
+Covered: startup and discovery, window buttons (including that no drag region covers them), Settings, themes (System/Light/Dark, persistence, layout), connecting/disconnecting Claude Code while the monitor is busy, install errors, folder choice and "Use automatic", Find folders again, provider switches, status summary, every plan menu, Enter/Esc, the agent plan (waiting → confirming → countdown → action, reset on new activity, last-second cancellation, cancel), timer mode, keep-awake, the tray (Windows/Linux) or menu bar (macOS: status line, close keeps it in the menu bar, Dock reopens it), minimize, the armed-quit and close confirmations, close, and settings surviving a restart.
 
 ## Run (Linux or macOS)
 

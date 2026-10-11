@@ -7,9 +7,11 @@ const OUT=process.env.QA_OUT||path.join(os.tmpdir(),'quietai-e2e');fs.mkdirSync(
 const results=[];let failures=0;
 function check(name,ok,detail=''){results.push({name,ok:!!ok,detail});if(!ok)failures++;console.log((ok?'PASS ':'FAIL ')+name+(detail?'  — '+detail:''));}
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const MAC=process.platform==='darwin';
+const VERSION=JSON.parse(fs.readFileSync(path.join(SRC,'package.json'),'utf8').replace(/^\uFEFF/,'')).version;
 
 // ——— Sandbox: app copy, fake home, profile ———
-const run=fs.mkdtempSync(path.join(os.tmpdir(),'quietai-'));
+const run=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'quietai-')));
 const app=path.join(run,'app'),home=path.join(run,'home'),profile=path.join(run,'profile');
 fs.cpSync(SRC,app,{recursive:true});
 fs.copyFileSync(path.join(ROOT,'stubs/power.js'),path.join(app,'power.js'));
@@ -70,7 +72,7 @@ const settingsFile=()=>JSON.parse(fs.readFileSync(path.join(profile,'settings.js
   check('Headline shows running chats',(await txt('#headline'))==='3 chats running',await txt('#headline'));
   check('Running list has 3 rows',(await page.locator('#chat-list li').count())===3);
   check('Elapsed time shown',(await txt('#chat-list li .time')).includes('min'),await txt('#chat-list li .time'));
-  check('Version shown is 4.1.0',s.version==='4.1.0');
+  check('Version shown matches package.json',s.version===VERSION,s.version);
   await shot('01-main-dark');
 
   // 2. Drag regions must never cover the window buttons (this was the dead close button)
@@ -89,7 +91,8 @@ const settingsFile=()=>JSON.parse(fs.readFileSync(path.join(profile,'settings.js
   await page.click('#open-settings');await sleep(400);
   check('Settings opens from titlebar',await page.evaluate(()=>document.body.classList.contains('settings-open')));
   dp=await dragProblems();check('No drag region covers window buttons (settings open)',dp.length===0,dp.join('; '));
-  check('Titlebar stays visible above Settings',await page.evaluate(()=>{const b=document.querySelector('#close').getBoundingClientRect();return document.elementFromPoint(b.left+b.width/2,b.top+b.height/2)?.closest('#close')!==null;}));
+  if(MAC)check('macOS uses the native traffic lights (custom window buttons hidden)',await page.evaluate(()=>getComputedStyle(document.querySelector('#close')).display==='none'));
+  else check('Titlebar stays visible above Settings',await page.evaluate(()=>{const b=document.querySelector('#close').getBoundingClientRect();return document.elementFromPoint(b.left+b.width/2,b.top+b.height/2)?.closest('#close')!==null;}));
   check('Folder rows show path + "Found automatically"',(await txt('#codex-folder')).endsWith('sessions')&&(await txt('#codex-origin'))==='Found automatically',await txt('#codex-origin'));
   check('"Use automatic" hidden when nothing was chosen manually',await page.locator('.automatic[data-provider="codex"]').evaluate(e=>e.classList.contains('hidden')));
   await shot('02-settings-dark');
@@ -169,7 +172,7 @@ const settingsFile=()=>JSON.parse(fs.readFileSync(path.join(profile,'settings.js
   await eapp.evaluate(({clipboard})=>clipboard.writeText(''));
   await page.click('#diagnostics');await sleep(300);
   const clip=await eapp.evaluate(({clipboard})=>clipboard.readText());
-  check('Copy status summary works',clip.includes('"version": "4.1.0"')&&!clip.includes(home),clip.slice(0,80));
+  check('Copy status summary works',clip.includes('"version": "'+VERSION+'"')&&!clip.includes(home),clip.slice(0,80));
   await eapp.evaluate(({shell})=>{globalThis.__opened=[];shell.openExternal=url=>{globalThis.__opened.push(url);return Promise.resolve();};});
   check('About credits the author',(await txt('#website'))==='Nikita Shulga');
   await page.click('#website');await sleep(300);
@@ -196,7 +199,7 @@ const settingsFile=()=>JSON.parse(fs.readFileSync(path.join(profile,'settings.js
   check('No "not connected" banner when the window is watched',await waitFor(async()=>!(await page.locator('#banner').isVisible()),4000));
   setControl({windows:{claude:{windows:1,stops:['Stop response']},codex:{windows:1,stops:[]}}});
   check('A Stop button in the Claude app counts as a running chat',await waitFor(async()=>(await txt('#headline'))==='1 chat running',8000),await txt('#headline'));
-  check('Running list names the Claude app',await waitFor(async()=>(await txt('#chat-list')).includes('Claude app · working'),4000));
+  check('Running list names the Claude app',await waitFor(async()=>/Claude app · (Chat\/Cowork )?working/.test(await txt('#chat-list')),4000));
   s=await mainState();check('Plan is blocked while the app works',!s.snapshot.clear);
   setControl({windows:{claude:{windows:1,stops:['Stop response']},codex:{windows:1,stops:['Interrupt']}}});
   check('Codex app work counts too',await waitFor(async()=>(await txt('#headline'))==='2 chats running',8000),await txt('#headline'));
@@ -365,37 +368,65 @@ const settingsFile=()=>JSON.parse(fs.readFileSync(path.join(profile,'settings.js
   {const f=path.join(stateRoot,'quietai-activity.log');let lines=[];try{lines=fs.readFileSync(f,'utf8').trim().split('\n').map(l=>JSON.parse(l));}catch{}
    check('Activity log records plan phases',lines.some(l=>l.event==='phase'&&l.to==='countdown')&&lines.some(l=>l.event==='start'),f);
    check('Activity log records retired Codex turns',lines.some(l=>l.event==='codex-turn-retired'));}
-  // 11a. Minimize to tray
+  // 11a. Minimize to the tray (Windows/Linux) or the menu bar (macOS)
+  const mainWin="BrowserWindow.getAllWindows().find(w=>w.getTitle()!=='Quiet AI countdown')";
   const vis=()=>eapp.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows().find(w=>w.getTitle()!=='Quiet AI countdown').isVisible());
+  // macOS has native traffic lights instead of the custom buttons, so drive the window itself there.
+  const minimizeWin=()=>MAC?eapp.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows().find(w=>w.getTitle()!=='Quiet AI countdown').minimize()):page.click('#minimize');
+  const closeWin=(pg=page,ea=eapp)=>MAC?ea.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows().find(w=>w.getTitle()!=='Quiet AI countdown').close()):pg.click('#close');
+  const menuItem=label=>eapp.evaluate((_,l)=>{const it=global.__quietTray.menu().items.find(i=>i.label===l);if(!it||!it.enabled)return false;it.click();return true;},label);
+  // On macOS a tray click pops the menu up natively (a modal loop), so record it instead.
+  if(MAC)await eapp.evaluate(()=>{global.__popups=0;global.__quietTray.tray.popUpContextMenu=()=>{global.__popups++;};});
+  const trayClickRestores=async()=>{
+    await eapp.evaluate(()=>global.__quietTray.tray.emit('click'));
+    if(MAC){if(!await waitFor(()=>eapp.evaluate(()=>global.__popups>0),3000))return false;await menuItem('Open Quiet AI');}
+    return waitFor(vis,3000);
+  };
   check('Tray icon is created',await eapp.evaluate(()=>!!global.__quietTray));
   check('Tray tooltip shows the status',await waitFor(()=>eapp.evaluate(()=>/^Quiet AI — (Not armed|\d+ chats? running)/.test(global.__quietTray.tip())),3000),await eapp.evaluate(()=>global.__quietTray.tip()));
-  await page.click('#minimize');
+  await minimizeWin();
   check('Minimize hides the window to the tray',await waitFor(async()=>!(await vis()),3000));
-  check('The tray hint is shown only once',await waitFor(()=>settingsFile().trayHintShown===true,3000));
-  await eapp.evaluate(()=>global.__quietTray.tray.emit('click'));
-  check('Clicking the tray icon brings the window back',await waitFor(vis,3000));
-  const labels=await eapp.evaluate(()=>global.__quietTray.menu().items.map(i=>i.label+':'+i.enabled));
+  // The hint counts as shown only once macOS really showed it; if notifications aren't allowed
+  // (e.g. a bare Electron binary) the failure is logged and the hint is tried again next time.
+  {const hintFailed=()=>{try{return fs.readFileSync(path.join(stateRoot,'quietai-activity.log'),'utf8').includes('"kind":"tray-hint"');}catch{return false;}};
+   check('The tray hint is shown only once (or its failure is logged)',await waitFor(()=>settingsFile().trayHintShown===true||(MAC&&hintFailed()),3000));}
+  check(MAC?'Clicking the menu-bar icon shows its menu, and Open Quiet AI brings the window back':'Clicking the tray icon brings the window back',await trayClickRestores());
+  let labels=await eapp.evaluate(()=>global.__quietTray.menu().items.map(i=>i.label+':'+i.enabled));
+  if(MAC){check('Menu-bar menu starts with the plan status (not clickable)',/^(Not armed|\d+ chats? running):false$/.test(labels[0])&&labels[1]===':true',labels.slice(0,2).join('|'));labels=labels.slice(2);}
   check('Tray menu: Open, Stop plan (disabled when not armed), Quit',labels.join('|')==='Open Quiet AI:true|Stop plan:false|:true|Quit Quiet AI:true',labels.join('|'));
   await page.click('#arm');await waitFor(async()=>['waiting','idle'].includes((await mainState()).plan.phase),4000);
-  await page.click('#minimize');await waitFor(async()=>!(await vis()),3000);
+  await minimizeWin();await waitFor(async()=>!(await vis()),3000);
   check('Tray tooltip follows the plan',await eapp.evaluate(()=>/armed|confirming|Armed/i.test(global.__quietTray.tip())),await eapp.evaluate(()=>global.__quietTray.tip()));
-  check('Stop plan works from the tray menu',await eapp.evaluate(()=>{const m=global.__quietTray.menu();const it=m.items.find(i=>i.label==='Stop plan');if(!it||!it.enabled)return false;it.click();return true;})&&await waitFor(async()=>(await mainState()).plan.phase==='disarmed',3000));
-  await eapp.evaluate(()=>global.__quietTray.tray.emit('click'));await waitFor(vis,3000);
+  if(MAC)check('Menu-bar menu shows the plan status',await eapp.evaluate(()=>/armed|confirming|Armed/i.test(global.__quietTray.menu().items[0].label)),await eapp.evaluate(()=>global.__quietTray.menu().items[0].label));
+  check('Stop plan works from the tray menu',await menuItem('Stop plan')&&await waitFor(async()=>(await mainState()).plan.phase==='disarmed',3000));
+  await trayClickRestores();
+  if(MAC){
+    await closeWin();
+    check('macOS: closing the window keeps Quiet AI in the menu bar',await waitFor(async()=>!(await vis()),3000)&&await eapp.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows().length>=1));
+    await eapp.evaluate(({app})=>app.emit('activate'));
+    check('macOS: clicking the Dock icon brings the window back',await waitFor(vis,3000));
+  }
+  // Quit from anywhere (Cmd-Q, Dock, menu) while armed asks first; Keep running keeps the plan.
+  setControl({snapshot:busyChats()});await page.click('#arm');await waitFor(async()=>(await mainState()).plan.phase==='waiting',3000);
+  await eapp.evaluate(()=>{global.__dialogAnswer=0;global.__dialogs=0;});
+  await eapp.evaluate(({app})=>{app.quit();});await sleep(600);
+  check('Quit while armed asks first; Keep running keeps the plan',await eapp.evaluate(()=>global.__dialogs===1)&&(await mainState()).plan.phase==='waiting');
+  await page.click('#arm');await waitFor(async()=>(await mainState()).plan.phase==='disarmed',3000);
   await page.click('#open-settings');await sleep(300);await page.click('#tray-toggle');await sleep(400);await page.click('#close-settings');await sleep(300);
   check('“Minimize to tray” can be turned off',settingsFile().minimizeToTray===false);
 
   // 11. Minimize, close confirmation, close
-  await eapp.evaluate(({BrowserWindow})=>{const w=BrowserWindow.getAllWindows().find(w=>w.getTitle()!=='Quiet AI countdown');global.__min=0;const m=w.minimize.bind(w);w.minimize=()=>{global.__min++;m();};});
-  await page.click('#minimize');
-  check('Minimize button minimizes the window',await waitFor(()=>eapp.evaluate(()=>global.__min===1),3000));
+  await eapp.evaluate(({BrowserWindow})=>{const w=BrowserWindow.getAllWindows().find(w=>w.getTitle()!=='Quiet AI countdown');global.__min=0;w.on('minimize',()=>global.__min++);});
+  await minimizeWin();
+  check('Minimize minimizes the window (tray off)',await waitFor(()=>eapp.evaluate(({BrowserWindow})=>global.__min===1&&BrowserWindow.getAllWindows().find(w=>w.getTitle()!=='Quiet AI countdown').isMinimized()),3000));
   await eapp.evaluate(({BrowserWindow})=>{const w=BrowserWindow.getAllWindows().find(w=>w.getTitle()!=='Quiet AI countdown');w.restore();w.show();});await sleep(400);
   setControl({snapshot:busyChats()});await page.click('#arm');await waitFor(async()=>(await mainState()).plan.phase==='waiting',3000);
-  await eapp.evaluate(()=>{global.__dialogAnswer=0;});
-  await page.click('#close');await sleep(600);
+  await eapp.evaluate(()=>{global.__dialogAnswer=0;global.__dialogs=0;});
+  await closeWin();await sleep(600);
   check('Close while armed asks first and can keep running',await eapp.evaluate(({BrowserWindow})=>global.__dialogs===1&&BrowserWindow.getAllWindows().length===1));
   await eapp.evaluate(()=>{global.__dialogAnswer=1;});
   const closed=eapp.waitForEvent('close',{timeout:8000}).then(()=>true).catch(()=>false);
-  await page.click('#close').catch(()=>{});
+  await closeWin().catch(()=>{});
   check('Close button quits the app',await closed);
 
   // 12. Second launch keeps settings and theme
@@ -404,7 +435,7 @@ const settingsFile=()=>JSON.parse(fs.readFileSync(path.join(profile,'settings.js
   const s2=await p2.evaluate(()=>window.quiet.command('state'));
   check('Settings persist across restarts',s2.settings.scheduleMode==='Codex'&&s2.settings.action==='Lock'&&s2.settings.theme==='system'&&s2.plan.phase==='disarmed');
   const closed2=eapp2.waitForEvent('close',{timeout:8000}).then(()=>true).catch(()=>false);
-  await p2.click('#close').catch(()=>{});
+  await closeWin(p2,eapp2).catch(()=>{});
   check('Close works with nothing armed (no prompt)',await closed2);
 
   fs.writeFileSync(path.join(OUT,'results.json'),JSON.stringify({failures,results},null,1));
