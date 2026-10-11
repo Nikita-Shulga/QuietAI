@@ -708,7 +708,7 @@ app.whenReady().then(()=>{
   if(!preview)createTray();
   startWindowWatcher();
   setInterval(scan,2000);setInterval(tick,300);
-  if(!process.argv.includes('--capture')&&!process.env.QUIETAI_TEST_HOOKS){setTimeout(()=>{updater.cleanup();checkUpdate(false);},15000);setInterval(()=>checkUpdate(false),6*3600000);}
+  if(!process.argv.includes('--capture')&&!process.env.QUIETAI_TEST_HOOKS){setTimeout(()=>{if(update.phase==='idle')updater.cleanup();/* never remove the folder of an update already downloading */checkUpdate(false);},15000);setInterval(()=>checkUpdate(false),6*3600000);}
 });
 app.on('window-all-closed',()=>app.quit());
 app.on('will-quit',()=>{try{tray?.destroy();}catch{}tray=null;});
