@@ -53,7 +53,7 @@ You start a long **Claude Code** or **Codex** run before bed, or before you leav
 | --- | --- | --- |
 | **Windows 10 / 11** (Intel/AMD) | `QuietAI-<version>-win-x64.zip` | Recommended |
 | Windows on ARM | `QuietAI-<version>-win-arm64.zip` | |
-| macOS 14+ (Apple silicon) | `QuietAI-<version>-mac-arm64.zip` | Preview, see [docs/MAC.md](docs/MAC.md) |
+| macOS 14+ (Apple silicon) | `QuietAI-<version>-mac-arm64.zip` | Tested on macOS 15, see [docs/MAC.md](docs/MAC.md) |
 | macOS 14+ (Intel) | `QuietAI-<version>-mac-x64.zip` | Preview |
 
 Get them from the **[latest release](https://github.com/Nikita-Shulga/QuietAI/releases/latest)**. Each release also has `SHA256SUMS.txt` for verifying the downloads.

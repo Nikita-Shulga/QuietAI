@@ -279,6 +279,10 @@ function render(state){
   }
   const W=state.windows||{};
   $('tray-toggle').checked=settings.minimizeToTray!==false;
+  const mac=state.platform==='darwin';
+  text('tray-label',mac?'Minimize to menu bar':'Minimize to tray');
+  text('tray-description',mac?'Minimizing or closing keeps Quiet AI in the menu bar. Choose Open Quiet AI from its icon, or reopen it from the Dock. Use Quit to stop the app.':'Minimizing hides Quiet AI to the notification area. Hover its icon for the status; click it to open.');
+  $('tray-toggle').setAttribute('aria-label',mac?'Minimize to menu bar':'Minimize to tray');
   $('away-toggle').checked=settings.waitForAway!==false;$('away-toggle').disabled=active;$('away-detail').textContent=`Only act after ${duration('awayMinutes',settings.awayMinutes||10)} with no mouse or keyboard use. Using the computer during the final countdown cancels it. The countdown appears on top of everything, on every screen.`;$('away-row').classList.toggle('hidden',settings.waitForAway===false);$('away-row').querySelector('.select').disabled=active;
   $('windows-toggle').checked=settings.watchWindows!==false;$('windows-toggle').disabled=active||!W.supported;
   for(const k of ['claude','codex']){

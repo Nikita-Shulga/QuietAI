@@ -1,5 +1,14 @@
 # Changelog
 
+## Quiet AI 4.2.3
+
+- Fixed: Quiet AI 4.2.2 for Mac crashed as soon as it opened. While reading the Claude and Codex app icons it asked macOS for a "large" file icon, a size Electron doesn't support on macOS, which killed the app. Mac builds now ask for the normal size and read the icons straight from the app bundles (also found outside /Applications, via Spotlight).
+- Mac: Quiet AI now lives in the menu bar. The icon is a monochrome template image that follows light and dark menu bars; clicking it shows the plan status with Open Quiet AI, Stop plan / Cancel countdown and Quit. Closing or minimizing the window keeps it running in the menu bar (Settings → Appearance → Minimize to menu bar), and clicking the Dock icon brings the window back. The app menu gains Hide/Show All and a Window menu.
+- Quitting while a plan is armed asks first on every path (Cmd-Q, the Dock, the tray/menu bar), not just when closing the window.
+- Safer away check: if the system can't report how long the mouse and keyboard have been idle, the plan waits instead of treating you as away, and idle time is checked once more right before the action.
+- The final-countdown notification now cancels the countdown when clicked, says "Your timer has finished" for timer plans, and is removed when the countdown ends or is cancelled. The countdown banner also shows over full-screen apps.
+- Added main-process tests (`tests/desktop`) for the Mac menu bar, quitting, the away check and notifications.
+
 ## Quiet AI 4.2.2
 
 - Fixed: a Claude Code chat could show as running for hours after it had finished, which kept plans waiting. When a turn is interrupted (Esc, a dropped session), Claude Code sends no Stop event, so that prompt stayed open. Now the end of any later turn closes all earlier prompts of the session, and Claude Code's own live status settles it sooner: once the session has been idle for a minute, or has exited, its earlier prompts count as finished. Subagents and background tasks are still tracked through Claude's own list of running work.

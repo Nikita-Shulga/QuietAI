@@ -22,6 +22,18 @@ The Claude collector is a bundled executable copied to `~/Library/Application Su
 
 Sleep and Display sleep use macOS power commands. Display sleep leaves apps running and does not guarantee a locked screen. Shut down and Restart use System Events. macOS may ask for Automation permission, and unsaved work may delay an action. Permission rejection is displayed by the app. Enable only permissions the selected action needs.
 
+## Menu bar
+
+Quiet AI keeps an icon in the menu bar. Click it for the plan status, **Open Quiet AI**, **Stop plan** (or **Cancel countdown**) and **Quit Quiet AI**. With **Settings → Appearance → Minimize to menu bar** on (the default), closing or minimizing the window keeps Quiet AI running there; click its Dock icon or choose Open Quiet AI to bring the window back. Quitting while a plan is armed always asks first.
+
 ## Current validation status
 
-Both architecture bundles are packaged by CI. Their app/helper names, local agent runtime, framework symlinks, executable modes, and ad hoc signatures were inspected during packaging. They have **not been launched on a Mac**. A Mac check should cover opening the app, automatic discovery, a live Codex chat, Claude hook loading, start/stop, cancellation, and the relevant OS permissions. Do not call this preview a stable Mac release until those checks have been completed.
+Tested on an Apple silicon Mac (macOS 15.5) with the arm64 build:
+
+- Opening the app, automatic discovery, provider icons, light/dark themes.
+- A live Codex chat and a live Claude Code session each going 0 → 1 → 0.
+- Start/Stop, Esc, minimize and close to the menu bar, reopening, the armed-quit prompt.
+- A timer plan running through the countdown banner, Cancel, and completion, with the power action replaced by a recorder. Real sleep/shut down/restart was not triggered.
+- Main-process tests: `node --test tests/desktop/*.test.cjs`.
+
+Not yet verified on real hardware: the Intel (x64) build, the menu-bar popup clicked by hand, notification permission denial, multiple displays, and **Update now** installing a new version on a Mac.
