@@ -36,6 +36,10 @@ The desktop UI is in `desktop`, the streaming monitor in `src/QuietAI.Core`, and
 
 **Honest claims.** Distinguish compilation, archive inspection, actual platform launches, visual review, and provider compatibility. Obtain a matching-platform launch before claiming something works there.
 
+## Commit attribution
+
+Credit human contributors accurately. Do not add AI tools, models, or provider accounts as authors, commit co-authors, or contributors. Omit AI-generated attribution trailers and AI credit text from commit messages and pull request descriptions.
+
 ## Pull requests
 
 - Keep each PR focused on one change, and describe how you checked it. The PR template has a short checklist.
