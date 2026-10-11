@@ -28,12 +28,12 @@ Quiet AI keeps an icon in the menu bar. Click it for the plan status, **Open Qui
 
 ## Current validation status
 
-Tested on an Apple silicon Mac (macOS 15.5) with the arm64 build:
+Quiet AI 4.2.3 was checked on an Apple silicon Mac (macOS 15.5):
 
-- Opening the app, automatic discovery, provider icons, light/dark themes.
-- A live Codex chat and a live Claude Code session each going 0 → 1 → 0.
-- Start/Stop, Esc, minimize and close to the menu bar, reopening, the armed-quit prompt.
-- A timer plan running through the countdown banner, Cancel, and completion, with the power action replaced by a recorder. Real sleep/shut down/restart was not triggered.
-- Main-process tests: `node --test tests/desktop/*.test.cjs`.
+- Both packages built from source with `scripts/build.py` (0 warnings), and their signatures pass `codesign --verify --deep --strict`. The arm64 app runs natively, and the x64 app runs under Rosetta.
+- The packaged app, run on real data, finds the Codex and Claude folders automatically, shows both app icons, connects to Codex, and lists a running Claude Code session from its live status.
+- End-to-end suite (`tests/e2e`, real app with a fake monitor and a recording power module): 148/148 on macOS. This includes the menu-bar icon and menu, closing to the menu bar, reopening from the Dock, the armed-quit prompt, the countdown banner, cancelling, and the action firing once.
+- Main-process tests: `node --test tests/desktop/*.test.cjs`, 15/15.
+- An earlier native session on the same Mac also covered a live Codex chat and a Claude Code session going 0 → 1 → 0, and a timer plan running to completion with the power action recorded instead of performed.
 
-Not yet verified on real hardware: the Intel (x64) build, the menu-bar popup clicked by hand, notification permission denial, multiple displays, and **Update now** installing a new version on a Mac.
+Not yet verified: a real sleep/shut down/restart triggered by Quiet AI, notification delivery from the signed app (macOS asks for permission on first use), multiple displays, an Intel Mac itself, and **Update now** installing a new version on a Mac.
