@@ -18,10 +18,8 @@ async function icon(bundle,nativeImage){
   try{
     const info=JSON.parse(await run('/usr/bin/plutil',['-convert','json','-o','-',path.join(bundle,'Contents','Info.plist')]));
     const resources=path.join(bundle,'Contents','Resources');
+    // Use the icon the app declares, as Windows does (for Codex that's the OpenAI logo).
     const names=[info.CFBundleIconName&&info.CFBundleIconName+'.icns'];
-    // Some Codex builds retain ChatGPT's bundle name/icon declaration, while
-    // shipping their current Codex artwork as app.icns.
-    if(info.CFBundleIdentifier==='com.openai.codex')names.push('app.icns');
     if(info.CFBundleIconFile)names.push(info.CFBundleIconFile,path.extname(info.CFBundleIconFile)?null:info.CFBundleIconFile+'.icns');
     const file=names.filter(name=>typeof name==='string'&&path.basename(name)===name).map(name=>path.join(resources,name)).find(file=>fs.existsSync(file));
     if(!file)return null;
