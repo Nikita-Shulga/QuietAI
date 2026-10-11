@@ -1,5 +1,10 @@
 # Changelog
 
+## Quiet AI 4.2.4
+
+- Fixed: **Update now** could fail with "ENOENT … unpacked" when clicked within about 15 seconds of opening Quiet AI. The start-up cleanup of leftover update folders removed the folder of the download in progress. The cleanup now skips while an update is running. Affects Windows and Mac.
+- Mac: verified on a Mac that a real Sleep and Display sleep run when the countdown ends, and that Update now replaces and reopens the app.
+
 ## Quiet AI 4.2.3
 
 - Fixed: Quiet AI 4.2.2 for Mac crashed as soon as it opened. While reading the Claude and Codex app icons it asked macOS for a "large" file icon, a size Electron doesn't support on macOS, which killed the app. Mac builds now ask for the normal size and read the icons straight from the app bundles (also found outside /Applications, via Spotlight).
