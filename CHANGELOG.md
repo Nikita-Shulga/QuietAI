@@ -1,5 +1,11 @@
 # Changelog
 
+## Quiet AI 4.2.7
+
+- Fixed: old Claude Code prompts could remain listed as running for 50+ hours after switching accounts or restarting Quiet AI. Historical root prompts now leave the running list once repeated complete scans of Claude's local session registry confirm that the session is absent for 10 seconds. Fresh hook activity restarts that check; genuinely busy or waiting sessions remain monitored regardless of age. Missing, unreadable, unsupported, or partially written session data keeps the plan waiting. Background agents, background tasks, scheduled work and uncertain records remain protected.
+- A new root prompt in the same Claude chat replaces an earlier interrupted root prompt, without clearing its background work.
+- Added account-switch/restart regression checks on Windows and macOS before release packaging, and clarified session detection in About and the detection guide.
+
 ## Quiet AI 4.2.6
 
 - Review stale running-chat entries with a native right-click menu or keyboard-accessible row action on Windows and Mac. Dismissing current prompts requires a warning, an initially unchecked acknowledgment and confirmation because they stop blocking AI-based power plans; agents keep running. New observed activity brings entries back, and a visible Restore action or app restart undoes dismissals. Unknown, background, scheduled and app-window-only activity stays protected.

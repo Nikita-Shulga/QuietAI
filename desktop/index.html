@@ -101,7 +101,7 @@
 
       <div class="block-head"><h2>About</h2><span id="version" class="note"></span></div>
       <div class="panel">
-        <div class="srow prose"><p>Quiet AI waits until every chat you watch has finished, waits a little longer to be sure, then gives you a moment to cancel. Anything it can’t verify keeps it waiting.</p><p id="platform-monitor-note" class="muted"></p></div>
+        <div class="srow prose"><p>Quiet AI waits until every chat you watch has finished, waits a little longer to be sure, then gives you a moment to cancel. Anything it can’t verify keeps it waiting.</p><p id="platform-monitor-note" class="muted"></p><p class="muted">Claude Code is checked through lifecycle hooks and its local live-session registry. Old prompts from a closed session leave the list after 10 seconds of repeated complete registry checks, including after an account switch or app restart. Busy sessions, sessions waiting for input, and background work still keep the plan waiting. If the registry can’t be read, Quiet AI waits.</p></div>
         <div class="srow connect" id="update-row"><div class="stext"><strong>Updates</strong><small id="update-status"></small></div><button id="release-page" class="link hidden">What’s new</button><button id="update-button" class="button">Check for updates</button></div>
         <div class="srow"><button id="diagnostics" class="link">Copy status summary</button></div>
       </div>

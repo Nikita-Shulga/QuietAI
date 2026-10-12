@@ -6,10 +6,12 @@ public sealed class MonitorEngine
 {
     private readonly Dictionary<string, LogState> _logs = new(StringComparer.OrdinalIgnoreCase);
     private readonly string _cachePath;
+    private readonly Func<DateTime> _utcNow;
     private long _revision;
     private DateTime _lastSave;
-    public MonitorEngine(string stateRoot)
+    public MonitorEngine(string stateRoot, Func<DateTime>? utcNow = null)
     {
+        _utcNow = utcNow ?? (() => DateTime.UtcNow);
         _cachePath = Path.Combine(stateRoot, "monitor-cache-v2.json");
         try
         {
@@ -31,7 +33,8 @@ public sealed class MonitorEngine
 
     private string _lastCodexVisible = "";
     private string _lastClaudeLive = "";
-    private readonly HashSet<string> _seenLiveSessions = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, (DateTime Since, string Generation)> _missingClaudeSessions = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly TimeSpan ClaudeExitConfirmation = TimeSpan.FromSeconds(10);
     private ProviderSnapshot ScanCodex(MonitorOptions options, CancellationToken token)
     {
         if (!options.CodexEnabled) return new("Codex", false, false, [], "Disabled in Connections.");
@@ -161,23 +164,44 @@ public sealed class MonitorEngine
     // every Claude item its chat name, so the app-window row for the same chat isn't listed twice.
     private List<WorkItem> WithClaudeLiveSessions(List<WorkItem> work, MonitorOptions options)
     {
-        var live = ClaudeLiveSessions.Read(options.ClaudeHome);
+        var inventory = ClaudeLiveSessions.ReadInventory(options.ClaudeHome);
+        var live = inventory.Sessions;
+        var now = _utcNow();
         // An interrupted turn never sends Stop, so its prompt would look "running" until the next turn
         // ends. Claude Code's own live status settles it: a root prompt is over if its session has been
-        // idle for a minute since that prompt's last event, or if a session seen here before has exited.
+        // idle for a minute since that prompt's last event. For account switches and app restarts,
+        // a complete registry also retires old root prompts absent across repeated healthy scans.
         // Only root prompts are dropped; subagents and background tasks keep their own tracking.
-        var liveById = live.GroupBy(s => s.Id, StringComparer.OrdinalIgnoreCase).ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
-        foreach (var s in live) _seenLiveSessions.Add(s.Id);
+        var liveById = live.GroupBy(s => s.Id, StringComparer.OrdinalIgnoreCase).ToDictionary(g => g.Key,
+            g => g.OrderByDescending(ClaudeLiveSessions.Working).ThenByDescending(s => s.UpdatedUtc).First(), StringComparer.OrdinalIgnoreCase);
+        string MissingKey(WorkItem item) => Path.GetFullPath(options.ClaudeHome) + ":" + item.Session;
+        // Failed inventory scans break the confirmation. They must never look like exits.
+        if (!inventory.Complete) _missingClaudeSessions.Clear();
+        foreach (var item in work.Where(item => item.Status == WorkStatus.Running && item.Key.Contains(":prompt:", StringComparison.Ordinal)))
+        {
+            var missingKey = MissingKey(item);
+            if (liveById.ContainsKey(item.Session)) { _missingClaudeSessions.Remove(missingKey); continue; }
+            if (!inventory.Complete) continue;
+            // A fresh hook record or changed generation restarts the confirmation,
+            // covering session registration/startup races and resumed sessions.
+            var generation = string.Join("\n", work.Where(w => w.Session.Equals(item.Session, StringComparison.OrdinalIgnoreCase))
+                .Select(w => w.Key + ":" + w.ActivityToken + ":" + w.LastEventUtc.Ticks).Order());
+            if (!_missingClaudeSessions.TryGetValue(missingKey, out var missing) || missing.Generation != generation || now < missing.Since)
+                _missingClaudeSessions[missingKey] = (now, generation);
+        }
         bool Stale(WorkItem item)
         {
             if (item.Status != WorkStatus.Running || !item.Key.Contains(":prompt:", StringComparison.Ordinal)) return false;
             if (liveById.TryGetValue(item.Session, out var s))
-                return s.Status is "idle" or "shell" && DateTime.UtcNow - s.UpdatedUtc > TimeSpan.FromMinutes(1) && item.LastEventUtc < s.UpdatedUtc;
-            return _seenLiveSessions.Contains(item.Session);
+                return s.Status is "idle" or "shell" && now - s.UpdatedUtc > TimeSpan.FromMinutes(1) && item.LastEventUtc < s.UpdatedUtc;
+            return inventory.Complete && _missingClaudeSessions.TryGetValue(MissingKey(item), out var missing)
+                && now - missing.Since >= ClaudeExitConfirmation && now - item.LastEventUtc >= ClaudeExitConfirmation;
         }
         work = work.Where(item => !Stale(item)).ToList();
+        if (!inventory.Complete && (Directory.Exists(Path.Combine(options.ClaudeHome, "sessions")) || work.Any(item => item.Key.Contains(":prompt:", StringComparison.Ordinal))))
+            work.Add(new("Claude:live-status", "Claude", "Connection", "Live sessions need attention", WorkStatus.Uncertain, inventory.Problem, now));
         var hooked = work.Where(item => item.Status == WorkStatus.Running).Select(item => item.Session).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        foreach (var session in live.Where(ClaudeLiveSessions.Working).Where(s => !hooked.Contains(s.Id)))
+        foreach (var session in liveById.Values.Where(ClaudeLiveSessions.Working).Where(s => !hooked.Contains(s.Id)))
         {
             var key = "Claude:live:" + session.Id;
             if (options.ExcludedWork.Contains(key)) continue;
@@ -186,7 +210,8 @@ public sealed class MonitorEngine
                 waiting ? "Claude Code is waiting (" + (session.WaitingFor.Length > 0 ? session.WaitingFor : "input") + ") before it can finish." : "Claude Code reports this session as busy.", session.UpdatedUtc)
                 { IsBackground = false, ActivityToken = "live:" + session.ActivityToken });
         }
-        var fingerprint = string.Join("\n", live.Where(ClaudeLiveSessions.Working).Select(s => s.Id + ":" + s.Status).Order());
+        var fingerprint = inventory.Complete + ":" + string.Join("\n", liveById.Values.Where(ClaudeLiveSessions.Working).Select(s => s.Id + ":" + s.Status).Order())
+            + "|" + string.Join("\n", work.Select(w => w.Key + ":" + w.Status).Order());
         if (_lastClaudeLive != fingerprint) { _lastClaudeLive = fingerprint; _revision++; }
         if (work.Count == 0) return work;
         var names = new Dictionary<string, string>(ClaudeChatNames.Read(options.ClaudeHome, work.Select(item => item.Session).Distinct()), StringComparer.OrdinalIgnoreCase);

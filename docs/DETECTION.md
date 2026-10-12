@@ -62,7 +62,7 @@ The installer registers synchronous command hooks in the configured Claude user 
 | Hook | Monitor behavior |
 | --- | --- |
 | `SessionStart` | Establish connection. A resumed session without previous lifecycle history remains uncertain until activity/Stop verifies it. |
-| `UserPromptSubmit` | Add a prompt identified by session and `prompt_id`. |
+| `UserPromptSubmit` | Add a prompt identified by session and `prompt_id`; a new identified root prompt replaces the previous root turn in the same session. Background work is kept. |
 | `PreToolUse`, `PostToolUse` | Mark the identified prompt/subagent active, including work continuing after an earlier Stop. |
 | `SubagentStart` | Add the specific `agent_id` separately from its parent. |
 | `Stop` | Remove the matching prompt/agent. For a root prompt, inspect background and scheduled registries. |
@@ -77,19 +77,21 @@ At a root `Stop`, `background_tasks` and `session_crons` must both be arrays. No
 Claude Code keeps one small file per running session in `<Claude home>/sessions/<pid>.json` with the session ID, its name and a status Claude Code updates as it works: `busy`, `waiting` (a permission prompt or a question for the user, with `waitingFor`), `idle` or `shell`. The monitor reads these every scan:
 
 - A session whose status is `busy` or `waiting` counts as a running chat, even if no hook event says so — this covers missed events and sessions started before the hook was connected. `waiting` keeps the plan waiting, because the work can't finish until someone answers.
-- A file counts only while its process is alive; on Windows the process creation time must also match the file's `procStart`, so a reused process ID is ignored. Files left behind by a crash never hold a plan.
-- The hook stays the primary signal (it also sees subagents, background tasks and scheduled wakeups). The live status only adds work; it never clears work the hook still reports.
+- A file counts only while its process is alive; on Windows the process creation time must exactly match the file's `procStart` when supplied, so a reused process ID is ignored. Files from a verified exited/replaced process do not hold a plan. Process-query failures remain uncertain.
+- The hook tracks prompts, subagents, background tasks and scheduled wakeups. The live registry adds busy/waiting roots and reconciles interrupted root prompts with explicit idle status or confirmed session absence. It never clears background, scheduled or uncertain work.
 - Chat names come from the same files (and `projects/<project>/<session>/custom-title.json`), so a chat tracked by the hook and shown in the Claude app window is listed once, under its real title.
 
 ### Coverage and limitations
 
+- **Account switches and restarts:** recorded hook history is not itself evidence that a session is still alive. Once the complete local `sessions/*.json` registry has been read successfully on repeated scans, a root prompt whose session remains absent for 10 seconds is excluded from current work. This also applies to historical prompts that Quiet AI never observed alive during its current run. A changed hook generation or new hook activity restarts confirmation; a session that becomes busy/waiting reappears immediately. The rule does not use an age limit: a busy session running for 50 hours still blocks. Accounts sharing the same Claude configuration folder share this local session inventory, so live work in either account remains protected.
+- A missing folder, partial or malformed entry, unsupported status, foreign PID domain, denied process query, or inventory changing during enumeration prevents absence-based retirement. An unverified item keeps the power plan waiting. This is a private Claude Code integration format, not a stable account API; sessions outside the configured local home remain outside coverage.
 - Install hooks **before** using the monitored sessions. Restart/resume all sessions after setup. A session that started earlier is still seen through its live status (above), but its subagents and background tasks are only visible once it emits hook events.
 - Recent Claude hook payloads are required. Older payloads without prompt IDs or background registries remain uncertain; there is no fallback that treats silence as done.
-- User interruption may not emit `Stop`. A session runs one root turn at a time, so a later root `Stop` closes every earlier prompt of that session. Before that, Claude Code's live status settles it: a root prompt counts as finished once its session has been `idle`/`shell` for a minute after the prompt's last event, or once a session seen in the live status has exited. Subagents and background tasks aren't affected by either rule; they follow the `Stop` registry.
+- User interruption may not emit `Stop`. A session runs one root turn at a time, so a new identified root `UserPromptSubmit` replaces the earlier root, and a later root `Stop` closes every earlier prompt of that session. The live status also settles an interrupted root once its session has been `idle`/`shell` for a minute after the prompt's last event, or after confirmed session absence as described above. Subagents and background tasks aren't affected by these root-only rules; they follow the `Stop` registry.
 - Other Stop hooks can block completion and make Claude continue. Subsequent observed tool/prompt events reactivate the work and reset idle confirmation. Unobserved continuation cannot be guaranteed detectable.
 - Project, local, plugin, and managed settings may alter hook behavior. The monitor verifies its installed user command hooks and checks known sessions' project/local `disableAllHooks` flags; it cannot prove coverage of unknown projects, every policy override, or work outside the configured root. See the [official settings reference](https://code.claude.com/docs/en/settings).
 - Background task and cron lists are snapshots at Stop, not continuous operating-system task discovery. A task which finishes without a later observable registry update can conservatively keep the plan waiting.
-- Native local Claude Code on Windows/macOS is the integration target. Regular Claude Chat, remote Code sessions, WSL, remote hosts, containers, and another account/device are outside this collector (on Windows, the app-window watcher below covers work shown in the Claude and Codex desktop apps). macOS runtime coverage remains unverified until a Mac launch check.
+- Native local Claude Code on Windows/macOS is the integration target. Regular Claude Chat, remote Code sessions, WSL, remote hosts, containers, and another configuration home/device are outside this collector (on Windows, the app-window watcher below covers work shown in the Claude and Codex desktop apps). macOS runtime coverage remains unverified until a Mac launch check.
 
 ## Desktop app windows (Windows)
 

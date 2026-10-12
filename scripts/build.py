@@ -4,7 +4,7 @@ Requires Python 3 and .NET 10 SDK. No npm dependencies. See README.md.
 import argparse, hashlib, json, os, plistlib, shutil, stat, subprocess, urllib.request, zipfile
 from pathlib import Path
 
-VERSION='4.2.6'
+VERSION='4.2.7'
 ELECTRON='44.7.0'
 TARGETS={'win-x64':('win32','x64','win-x64'),'win-arm64':('win32','arm64','win-arm64'),'mac-arm64':('darwin','arm64','osx-arm64'),'mac-x64':('darwin','x64','osx-x64')}
 

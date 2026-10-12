@@ -199,6 +199,9 @@ public static class EventLog
                 state.SessionEnded = false;
                 state.SeenLifecycle = true;
                 state.Work.Remove("resume-unknown");
+                if (eventType == "UserPromptSubmit" && string.IsNullOrEmpty(agent) && !string.IsNullOrEmpty(prompt))
+                    foreach (var previous in state.Work.Keys.Where(k => k.StartsWith("prompt:", StringComparison.Ordinal) && k != key).ToArray())
+                        state.Work.Remove(previous);
                 state.Work[key] = Running(key, string.IsNullOrEmpty(agent) ? "Claude prompt" : $"Subagent {Short(agent)}");
             }
             else if (eventType is "Stop" or "SubagentStop")

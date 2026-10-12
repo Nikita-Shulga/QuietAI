@@ -17,7 +17,7 @@ try {
  var claude=Path.Combine(root,"claude");Directory.CreateDirectory(Path.Combine(claude,"sessions"));var file=Path.Combine(claude,"sessions",Environment.ProcessId+".json");
  void Live(string status,long at)=>File.WriteAllText(file,JsonSerializer.Serialize(new{pid=Environment.ProcessId,sessionId="fixture-session",name="fixture",status,statusUpdatedAt=at}));
  var item=new WorkItem("Claude:fixture:prompt:one","Claude","fixture-session","prompt",WorkStatus.Running,"Working",DateTime.UtcNow){ActivityToken="log:1"};
- var engine=new MonitorEngine(Path.Combine(root,"cache"));var options=new MonitorOptions(false,root,true,claude,Path.Combine(root,"cache"),new HashSet<string>());
+ var clock=DateTime.UtcNow;var engine=new MonitorEngine(Path.Combine(root,"cache"),()=>clock);var options=new MonitorOptions(false,root,true,claude,Path.Combine(root,"cache"),new HashSet<string>());
  var method=typeof(MonitorEngine).GetMethod("WithClaudeLiveSessions",BindingFlags.Instance|BindingFlags.NonPublic)!;
  List<WorkItem> Read(List<WorkItem> work)=>(List<WorkItem>)method.Invoke(engine,new object[]{work,options})!;
  var busyAt=DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();Live("busy",busyAt);var initial=Read(new(){item}).Single();Check(initial.ActivityToken.StartsWith("log:1|"),"hooked root includes independent live generation");
@@ -27,6 +27,7 @@ try {
  var liveOnly=Read(new()).Single();Check(liveOnly.ActivityToken.StartsWith("live:")&&liveOnly.Status==WorkStatus.Running,"unhooked live-only root carries generation");
  var noMetadata=Read(new(){item with{ActivityToken=""}}).Single();Check(noMetadata.ActivityToken=="","untrusted deleted root does not gain dismissible token");
  File.WriteAllText(file,JsonSerializer.Serialize(new{pid=Environment.ProcessId,sessionId="fixture-session",name="fixture",status="busy"}));var fallback=Read(new(){item}).Single().ActivityToken;File.SetLastWriteTimeUtc(file,DateTime.UtcNow.AddSeconds(20));Check(Read(new(){item}).Single().ActivityToken!=fallback,"missing status timestamp uses conservative mtime generation");
- File.Delete(file);Check(Read(new(){item}).Count==0,"existing live-process retirement unchanged");
+ File.Delete(file);Check(Read(new(){item}).Count==1,"removed live session waits for repeated healthy scans");
+ clock=clock.AddSeconds(11);Check(Read(new(){item}).Count==0,"confirmed live-process exit retires the root");
  Console.WriteLine($"{passed} managed fixture checks passed; only generated temp files used");
 } finally {Directory.Delete(root,true);}
