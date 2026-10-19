@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## Quiet AI 4.3.0
 
 - Quiet AI is now available in Russian. Choose **Settings → Appearance → Language** (English / Русский); the switch applies at once, without a restart, to the window, the countdown banner, the tray or menu-bar menu and tooltip, notifications and dialogs. English stays the default for new and existing installs; the language is never picked from the system settings. Monitor messages (what's holding the plan, connection problems) are shown in Russian too, and the status summary for bug reports stays in English.
 - In the final countdown the line explaining how to cancel now wraps instead of being cut off, and the Claude Code hook row moves its buttons to their own line when the labels are long.
