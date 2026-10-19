@@ -7,7 +7,8 @@ The desktop UI lives in `desktop/` and has no npm dependencies.
 | `index.html` | Markup for the main window and the Settings view. Strict CSP: scripts, styles and fonts from the app only; images from the app or `data:` URLs. |
 | `style.css` | All visual design. Every colour is a CSS custom property on `:root`; the dark set is the default and `@media (prefers-color-scheme: light)` overrides it. Add new colours as tokens in **both** blocks. |
 | `renderer.js` | Sandboxed renderer. Renders the `quiet:state` object, draws the activity strip on a `<canvas>`, opens the custom menus, handles Enter/Esc. It never touches Node or the filesystem. |
-| `main.js` | Trusted main process: settings, scanning, the power plan, theme, provider icons, OS integration. |
+| `main.js` | Trusted main process: settings, scanning, the power plan, theme, language, provider icons, OS integration. |
+| `i18n.js` | Every user-visible string in English and Russian (same keys), plural rules and the display translation of monitor text. A plain script with no dependencies: `require('./i18n')` in the main process, `<script src="i18n.js">` in the sandboxed pages. |
 | `fonts/` | Inter (SIL OFL, see `LICENSE-Inter.txt`), subset to Latin, Cyrillic and Greek. |
 | `icon.*` | App icons rendered by `scripts/icons.py` (sunset mark). The same mark is drawn inline as SVG in `index.html`. |
 
@@ -20,7 +21,7 @@ Main window (460 × 690, minimum 420 × 640):
 3. **When it’s done** — trigger, action, quiet period or timer, time to cancel. Rows lock (become plain text) while a plan is active.
 4. **Call to action** — Start monitoring / Start timer (Enter), Stop (Esc), Cancel in the final countdown (Esc).
 
-Settings view (includes **Safety → Wait until I'm away**, setting `waitForAway`): opens below the title bar (the title bar's window buttons must stay clickable; do not add `-webkit-app-region: drag` to anything that can sit over them, even invisibly). Appearance (System / Light / Dark), Codex and Claude Code sources with their discovered folders, connect/disconnect Claude hooks, what is holding the plan, About.
+Settings view (includes **Appearance → Language**, setting `language`, and **Safety → Wait until I'm away**, setting `waitForAway`): opens below the title bar (the title bar's window buttons must stay clickable; do not add `-webkit-app-region: drag` to anything that can sit over them, even invisibly). Appearance (System / Light / Dark; Language: English / Русский), Codex and Claude Code sources with their discovered folders, connect/disconnect Claude hooks, what is holding the plan, About.
 
 ## Countdown banner
 
@@ -38,6 +39,14 @@ Settings view (includes **Safety → Wait until I'm away**, setting `waitForAway
 
 `settings.theme` is `system`, `light` or `dark` (default `system`). `main.js` applies it with `nativeTheme.themeSource` and sends the resolved result as `state.dark`; the renderer sets `<html data-mode="light|dark">`, and the light tokens live under `:root[data-mode="light"]`. (Relying on the `prefers-color-scheme` media query alone did not follow `themeSource` on every platform.) The renderer sends `command('theme', {theme})`; this command is allowed while a plan is armed, unlike other setting changes.
 
+## Language
+
+`settings.language` is `en` or `ru` (default `en` for new and existing installs; the system locale is never used to pick it). The renderer sends `command('language', {language})`, which, like `theme`, is allowed while a plan is armed. Switching applies at once, without a restart: the window and countdown banners re-render from the broadcast state (`<html lang>` follows), and `main.js` rebuilds the tray tooltip and menu and the macOS menu; notifications and dialogs shown afterwards use the new language.
+
+All strings live in `desktop/i18n.js` as `en` and `ru` dictionaries with identical keys. `tr(key, params)` fills `{name}` placeholders; plurals are objects picked with `Intl.PluralRules` (Russian `one`/`few`/`many`/`other`), and Russian durations come in three cases (`dur.minutes`, `dur.minutesAcc`, `dur.minutesGen`). Static text in `index.html` keeps its English and carries `data-i18n` (text), `data-i18n-label` (`aria-label`) or `data-i18n-title`. Product names (Quiet AI, Claude, Claude Code, Codex, OpenAI, Windows, macOS), paths, identifiers and the user's chat titles are never translated.
+
+The monitor and some main-process records (`work[].label`/`reason`, provider `detail`, window-watcher items) keep English text in their data, because the app matches and logs it. The `m.` keys translate that text for display only: their English value is the exact text (a `{placeholder}` matches a variable part); unknown text is shown unchanged. The activity log and **Copy status summary** stay English for bug reports. `tests/desktop/i18n.test.cjs` checks key parity, placeholders, plural forms, Russian typography and that every sentence the .NET monitor can show has a Russian rendering. When you add a string, add it to both dictionaries.
+
 ## Provider icons
 
 `main.js → findProviderIcons()` runs once after the window is created and adds `state.icons = {codex, claude}` as PNG data URLs (or `null`).
@@ -48,7 +57,7 @@ Settings view (includes **Safety → Wait until I'm away**, setting `waitForAway
 
 ## Renderer → main commands
 
-`state`, `update` (validated settings), `theme`, `tray` (minimize-to-tray switch; allowed while armed), `website`, `arm`, `stop`, `discover`, `browse`, `install`, `remove`, `diagnostics`, `minimize`, `close` (asks for confirmation while a plan is armed). `maximize` still exists in `main.js` but the window is not maximizable and has no button for it.
+`state`, `update` (validated settings), `theme`, `language` (allowed while armed), `tray` (minimize-to-tray switch; allowed while armed), `website`, `arm`, `stop`, `discover`, `browse`, `install`, `remove`, `diagnostics`, `minimize`, `close` (asks for confirmation while a plan is armed). `maximize` still exists in `main.js` but the window is not maximizable and has no button for it.
 
 ## App window watcher (Windows)
 

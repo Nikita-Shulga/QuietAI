@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Quiet AI is now available in Russian. Choose **Settings → Appearance → Language** (English / Русский); the switch applies at once, without a restart, to the window, the countdown banner, the tray or menu-bar menu and tooltip, notifications and dialogs. English stays the default for new and existing installs; the language is never picked from the system settings. Monitor messages (what's holding the plan, connection problems) are shown in Russian too, and the status summary for bug reports stays in English.
+- In the final countdown the line explaining how to cancel now wraps instead of being cut off, and the Claude Code hook row moves its buttons to their own line when the labels are long.
+
 ## Quiet AI 4.2.7
 
 - Fixed: old Claude Code prompts could remain listed as running for 50+ hours after switching accounts or restarting Quiet AI. Historical root prompts now leave the running list once repeated complete scans of Claude's local session registry confirm that the session is absent for 10 seconds. Fresh hook activity restarts that check; genuinely busy or waiting sessions remain monitored regardless of age. Missing, unreadable, unsupported, or partially written session data keeps the plan waiting. Background agents, background tasks, scheduled work and uncertain records remain protected.

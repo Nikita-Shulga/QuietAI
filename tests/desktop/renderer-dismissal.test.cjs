@@ -6,7 +6,7 @@ const {item,snapshot}=require('./dismissal-fixtures.cjs'),{DismissedWork}=requir
 function fixture(platform){
  const source=path.resolve(__dirname,'../../desktop'),dom=new JSDOM(fs.readFileSync(path.join(source,'index.html'),'utf8'),{runScripts:'outside-only',pretendToBeVisual:true,url:'https://quietai.invalid/'}),w=dom.window,commands=[];let listener;
  const st={platform,version:JSON.parse(fs.readFileSync(path.join(source,'package.json'),'utf8')).version,dark:true,settings:{codexEnabled:true,claudeEnabled:true,watchWindows:false,waitForAway:true,minimizeToTray:true,scheduleMode:'Codex',action:'Sleep',quietMinutes:5,countdownSeconds:60,timerMinutes:60,awayMinutes:10,theme:'system',codexSessionsOverride:'',claudeHomeOverride:''},sources:{codex:{exists:true,detected:true,folder:'/fixture/codex',origin:'fixture'},claude:{exists:true,detected:true,folder:'/fixture/claude',origin:'fixture'}},snapshot:new DismissedWork().apply(snapshot()),plan:{phase:'disarmed'},actions:['Sleep'],actionNames:{Sleep:'Sleep'},update:{phase:'idle'},icons:{},windows:{supported:platform==='win32'},dismissed:{count:0}};
- w.quiet={subscribe(fn){listener=fn;},async command(name,payload){commands.push({name,payload});return st;}};w.eval(fs.readFileSync(path.join(source,'renderer.js'),'utf8'));
+ w.quiet={subscribe(fn){listener=fn;},async command(name,payload){commands.push({name,payload});return st;}};w.eval(fs.readFileSync(path.join(source,'i18n.js'),'utf8'));w.eval(fs.readFileSync(path.join(source,'renderer.js'),'utf8'));
  return{w,commands,st,render:()=>listener(st),close:()=>w.close()};
 }
 for(const platform of ['darwin','win32'])test(platform+' right click and accessible native-menu action use latest token', {skip:!JSDOM},async()=>{

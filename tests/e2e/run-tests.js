@@ -114,6 +114,32 @@ const settingsFile=()=>JSON.parse(fs.readFileSync(path.join(profile,'settings.js
   await page.click('#theme-seg [data-theme="system"]');await sleep(300);
   await page.click('.sheet-body .block-head h2');await page.click('#codex-folder');await sleep(400);
   check('Clicking elsewhere never changes the theme',settingsFile().theme==='system',settingsFile().theme);
+
+  // 4b. Language: English by default, Russian applies at once (window, tray), nothing overflows
+  check('English is the default language',settingsFile().language==='en'&&await page.evaluate(()=>document.documentElement.lang)==='en',settingsFile().language);
+  // Text that would be cut off or spill out of its row (single-line labels, buttons, rows).
+  const overflow=()=>page.evaluate(()=>{const out=[];
+    for(const el of document.querySelectorAll('button,.plabel,.select,.headline,.summary,.block-head h2,.stext strong,.badge,.banner-cta,#language-seg,#theme-seg')){
+      const r=el.getBoundingClientRect();if(!r.width||!el.offsetParent)continue;
+      if(getComputedStyle(el).whiteSpace==='nowrap'&&el.scrollWidth>el.clientWidth+1)out.push((el.id||el.className||el.tagName)+' cut: '+el.textContent.trim().slice(0,40));
+      const row=el.closest('.srow,.prow,.block-head');if(row){const b=row.getBoundingClientRect();if(r.right>b.right+1||r.left<b.left-1)out.push((el.id||el.className||el.tagName)+' leaves its row');}
+    }
+    if(document.querySelector('.sheet-body').scrollWidth>document.querySelector('.sheet-body').clientWidth+1)out.push('settings scroll sideways');
+    return out;});
+  await page.click('#language-seg [data-language="ru"]');
+  check('Language → Русский applies without a restart',await waitFor(async()=>(await page.evaluate(()=>document.documentElement.lang))==='ru'&&(await txt('#cta-text'))==='Начать наблюдение',3000),await txt('#cta-text'));
+  await waitFor(()=>settingsFile().language==='ru',3000);check('Language saved',settingsFile().language==='ru',settingsFile().language);
+  check('Settings re-rendered in Russian',(await txt('.sheet-bar h2'))==='Настройки'&&(await txt('#language-seg [aria-pressed="true"]'))==='Русский'&&(await txt('#codex-origin')).startsWith('Найдена автоматически'),await txt('#codex-origin'));
+  await sleep(450);let of=await overflow();check('Russian Settings: no clipped or overflowing text',of.length===0,of.join('; '));
+  await shot('03b-settings-ru');
+  await page.click('#close-settings');await sleep(400);
+  check('Main window re-rendered in Russian',(await txt('#headline'))==='3 чата в работе'&&(await txt('#summary'))==='Затем\u00a0— спящий режим после 5 минут тишины.'&&(await txt('.block-head h2'))==='В работе',await txt('#headline')+' / '+await txt('#summary'));
+  of=await overflow();check('Russian main window: no clipped or overflowing text',of.length===0,of.join('; '));
+  check('Tray tooltip follows the language',await eapp.evaluate(()=>global.__quietTray?global.__quietTray.tip()==='Quiet AI — 3 чата в работе':true),await eapp.evaluate(()=>global.__quietTray?.tip()));
+  await shot('03c-main-ru');
+  await page.click('#open-settings');await sleep(300);
+  await page.click('#language-seg [data-language="en"]');
+  check('Back to English',await waitFor(async()=>(await page.evaluate(()=>document.documentElement.lang))==='en'&&(await txt('.sheet-bar h2'))==='Settings'&&settingsFile().language==='en',3000));
   await page.evaluate(()=>window.quiet.command('update',{watchWindows:false})); // hook-only behaviour first
   // 5. Connect Claude Code while the monitor is busy (this was the dead Connect button)
   setControl({snapshot:claudeNotConnected('Connect Claude in Sources, then restart or resume open Claude Code sessions.'),scanDelayMs:1500});

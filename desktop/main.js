@@ -7,6 +7,7 @@ const Agent=require('./agent');
 const {discover}=require('./discovery');
 const power=require('./power');
 const updater=require('./updater');
+const i18n=require('./i18n'),{tr}=i18n; // interface language: settings.language, English by default
 const {DismissedWork,inspect}=require('./dismissed-work');
 const dismissedWork=new DismissedWork();
 let rawSnapshot=null,scanSerial=0,manualReview=false;
@@ -23,7 +24,7 @@ let plan={phase:'disarmed',until:null,started:null};
 const settingsPath=path.join(configRoot,'settings.json');
 const legacyRoot=process.platform==='win32'?path.join(process.env.LOCALAPPDATA,'CodexQuietShutdown'):null;
 const stateRoot=process.env.QUIETAI_PROFILE?path.join(configRoot,'monitor'):legacyRoot||path.join(configRoot,'monitor');
-const defaults={version:4,action:'Sleep',scheduleMode:'Codex',quietMinutes:5,countdownSeconds:60,timerMinutes:60,codexEnabled:null,claudeEnabled:null,codexSessionsOverride:'',claudeHomeOverride:'',excludedWork:[],theme:'system',watchWindows:true,waitForAway:true,minimizeToTray:true,trayHintShown:false,awayMinutes:10};
+const defaults={version:4,action:'Sleep',scheduleMode:'Codex',quietMinutes:5,countdownSeconds:60,timerMinutes:60,codexEnabled:null,claudeEnabled:null,codexSessionsOverride:'',claudeHomeOverride:'',excludedWork:[],theme:'system',watchWindows:true,waitForAway:true,minimizeToTray:true,trayHintShown:false,awayMinutes:10,language:'en'};
 const THEMES=['system','light','dark'];
 function themeBackground(){return nativeTheme.shouldUseDarkColors?'#0A0A0B':'#F3F3F5';}
 function loadSettings(){
@@ -34,6 +35,7 @@ function loadSettings(){
   if(!power.actions.includes(settings.action))settings.action='Sleep';
   if(!THEMES.includes(settings.theme))settings.theme='system';
   nativeTheme.themeSource=settings.theme;
+  settings.language=i18n.setLanguage(settings.language); // never guessed from the system locale
   sources=discover(settings);
   settings.codexEnabled??=sources.codex.detected;
   settings.claudeEnabled??=sources.claude.detected;
@@ -125,7 +127,7 @@ function hideToTray(){
   window.hide();
   if(!settings.trayHintShown){
     if(Notification.isSupported()){
-      const note=new Notification({title:'Quiet AI is still running',body:process.platform==='darwin'?'It’s in the menu bar now. Choose Open Quiet AI from its icon, or reopen it from the Dock.':'It’s in the tray now. Click its icon to open it again.',silent:true});
+      const note=new Notification({title:tr('tray.hintTitle'),body:tr(process.platform==='darwin'?'tray.hintMac':'tray.hint'),silent:true});
       note.on('show',()=>{settings.trayHintShown=true;save();});note.on('failed',(_event,reason)=>activity('notification-failed',{kind:'tray-hint',reason:String(reason||'').slice(0,200)}));note.on('click',showWindow);note.show();
     }
   }
@@ -133,32 +135,33 @@ function hideToTray(){
 function trayStatus(){
   const left=()=>{const s=Math.max(0,Math.ceil((plan.until-Date.now())/1000));return Math.floor(s/60)+':'+String(s%60).padStart(2,'0');};
   const chats=snapshot?.chatCount||0;
-  const name=power.names[settings.action]||settings.action;
+  const name=actionName(settings.action);
   switch(plan.phase){
-    case 'countdown':return name+' in '+left()+(process.platform==='darwin'?' — open menu to cancel':' — open to cancel');
-    case 'timer':return plan.present?'Time’s up — waiting for you to step away':name+' in '+left();
-    case 'idle':return plan.present?'AI is done — waiting for you to step away':'All quiet — confirming';
-    case 'waiting':return chats?chats+(chats===1?' chat':' chats')+' running — armed':'Armed, waiting';
+    case 'countdown':return tr(process.platform==='darwin'?'tray.countdownMac':'tray.countdown',{action:name,time:left()});
+    case 'timer':return plan.present?tr('tray.timerPresent'):tr('plan.timerLine',{action:name,duration:left()});
+    case 'idle':return tr(plan.present?'tray.idlePresent':'tray.confirming');
+    case 'waiting':return chats?tr('tray.armedRunning',{count:chats}):tr('tray.armed');
     case 'executing':return name+'…';
-    default:return chats?chats+(chats===1?' chat':' chats')+' running':'Not armed';
+    default:return chats?tr('count.chatsRunning',{count:chats}):tr('tray.notArmed');
   }
 }
+function actionName(action){return i18n.has('action.'+action)?tr('action.'+action):power.names[action]||action;}
 function syncTray(){
   if(!tray)return;
   const tip='Quiet AI — '+trayStatus();
   if(tip!==trayTip){trayTip=tip;try{tray.setToolTip(tip);}catch{}}
   if(process.platform!=='win32'&&process.platform!=='darwin'){
-    const key=JSON.stringify([plan.phase,active()]);
+    const key=JSON.stringify([plan.phase,active(),i18n.language()]);
     if(key!==trayMenuKey){trayMenuKey=key;tray.setContextMenu(trayMenu());}
   }
 }
 function trayMenu(){
   return Menu.buildFromTemplate([
     ...(process.platform==='darwin'?[{label:trayStatus(),enabled:false},{type:'separator'}]:[]),
-    {label:'Open Quiet AI',click:showWindow},
-    {label:plan.phase==='countdown'?'Cancel countdown':'Stop plan',enabled:active()&&plan.phase!=='executing',click:()=>{reset();message='Plan stopped. No power action is scheduled.';broadcast();}},
+    {label:tr('tray.open'),click:showWindow},
+    {label:tr(plan.phase==='countdown'?'tray.cancelCountdown':'tray.stopPlan'),enabled:active()&&plan.phase!=='executing',click:()=>{reset();message=tr('msg.planStopped');broadcast();}},
     {type:'separator'},
-    {label:'Quit Quiet AI',click:()=>app.quit()}
+    {label:tr('tray.quit'),click:()=>app.quit()}
   ]);
 }
 function createTray(){
@@ -183,11 +186,11 @@ function announceCountdown(){
   window.setAlwaysOnTop(true,'screen-saver');window.showInactive();window.moveTop();window.flashFrame(true);
   showOverlays();
   if(Notification.isSupported()){
-    const finished=plan.timer?'Your timer has finished.':'Your AI has finished.';
-    const note=new Notification({title:power.names[settings.action]+' in '+settings.countdownSeconds+' seconds',body:finished+(settings.waitForAway?' Move the mouse or click this notification to cancel.':' Click this notification to cancel.'),silent:false});
+    const finished=tr(plan.timer?'notify.timerFinished':'notify.aiFinished');
+    const note=new Notification({title:tr('notify.countdownTitle',{action:actionName(settings.action),count:settings.countdownSeconds}),body:finished+' '+tr(settings.waitForAway?'notify.moveOrClick':'notify.click'),silent:false});
     countdownNotification=note;
     note.on('failed',(_event,reason)=>activity('notification-failed',{kind:'countdown',reason:String(reason||'').slice(0,200)}));
-    note.on('click',()=>{if(plan.phase==='countdown'){reset();message='Countdown cancelled. No power action is scheduled.';broadcast();}showWindow();});note.show();
+    note.on('click',()=>{if(plan.phase==='countdown'){reset();message=tr('msg.countdownCancelled');broadcast();}showWindow();});note.show();
   }
 }
 // Show the real Claude and Codex icons by reading them from the apps installed
@@ -350,7 +353,7 @@ function findStaleCodexTurns(snap){
 async function waitForScan(limit=30000){
   const end=Date.now()+limit;
   while(busy&&Date.now()<end)await new Promise(resolve=>setTimeout(resolve,100));
-  if(busy)throw new Error('The monitor is still busy. Try again in a moment.');
+  if(busy)throw new Error(tr('error.monitorBusy'));
 }
 // Once the hook is installed, "no Claude Code event yet" means no hooked Claude Code
 // session has run. Treat that as connected with nothing running, so a Codex-only
@@ -391,23 +394,25 @@ function runHook(command,input,timeout=20000){
 async function checkClaude(){
   const settingsFile=path.join(sources.claude.folder,'settings.json');
   const r={settingsFile,found:false,events:[],disabled:false,ran:false,ok:false,problem:''};
+  // The problem is kept in English (status summary, tests) and as a key the interface translates.
+  const problem=(key,params)=>{r.problemKey=key;r.problemParams=params;r.problem=tr(key,params,'en');};
   let json;
-  try{json=JSON.parse(fs.readFileSync(settingsFile,'utf8'));}catch(ex){r.problem=fs.existsSync(settingsFile)?'Claude Code’s settings file could not be read: '+ex.message:'Claude Code’s settings file does not exist yet. Click Connect.';return r;}
+  try{json=JSON.parse(fs.readFileSync(settingsFile,'utf8'));}catch(ex){fs.existsSync(settingsFile)?problem('check.unreadable',{error:ex.message}):problem('check.noFile');return r;}
   r.disabled=json.disableAllHooks===true;
   let command=null;
   for(const [event,groups] of Object.entries(json.hooks||{}))
     for(const group of Array.isArray(groups)?groups:[])for(const handler of Array.isArray(group?.hooks)?group.hooks:[])
       if(isOurHook(handler?.command)){if(!r.events.includes(event))r.events.push(event);if(event==='SessionStart'||!command)command=handler.command;}
   r.found=r.events.length>0;
-  if(!r.found){r.problem='Quiet AI’s hook is not in '+settingsFile+'. Click Connect.';return r;}
-  if(r.disabled){r.problem='Claude Code’s settings disable all hooks (disableAllHooks).';return r;}
+  if(!r.found){problem('check.notInFile',{file:settingsFile});return r;}
+  if(r.disabled){problem('check.disabled');return r;}
   const session='quietai-selftest-'+Date.now();
   const eventsDir=path.join(stateRoot,'claude-events'),log=path.join(eventsDir,session+'.jsonl');
   const result=await runHook(command,{hook_event_name:'SessionStart',session_id:session,source:'startup',cwd:os.homedir()});
   r.ran=true;r.exitCode=result.code;
   r.ok=fs.existsSync(log);
   for(const f of [log,path.join(eventsDir,session+'.collector-lock')])try{fs.rmSync(f,{force:true});}catch{}
-  if(!r.ok)r.problem='The hook command ran but did not record the test event'+(result.stderr?': '+result.stderr:'.')+' Click Connect to reinstall it.';
+  if(!r.ok)result.stderr?problem('check.notRecordedDetail',{error:result.stderr}):problem('check.notRecorded');
   return r;
 }
 
@@ -529,7 +534,7 @@ function waitForPresence(unavailable=false){
   dismissCountdownNotification();
   const timer=plan.timer;
   plan=timer?{phase:'timer',started:plan.started,until:Date.now(),present:true}:{phase:'idle',started:Date.now(),until:Date.now()+awayMs(),present:true};
-  message=unavailable?'Quiet AI can’t verify keyboard or mouse inactivity, so the plan is waiting.':'You’re using the computer, so Quiet AI will wait until you step away.';
+  message=tr(unavailable?'msg.cantVerifyIdle':'msg.userPresent');
   broadcast();
 }
 async function tick(){
@@ -537,7 +542,7 @@ async function tick(){
   const idle=settings.waitForAway?userIdleMs():null;
   if(active()&&settings.waitForAway&&idle===null){
     if(plan.phase==='countdown')waitForPresence(true);
-    else{message='Quiet AI can’t verify keyboard or mouse inactivity, so the plan is waiting.';broadcast();}
+    else{message=tr('msg.cantVerifyIdle');broadcast();}
     return;
   }
   // Someone touched the mouse or keyboard during the final countdown: don't act under them.
@@ -561,8 +566,8 @@ async function tick(){
         if(freshIdle===null||freshIdle<awayMs()||freshIdle+400<Date.now()-plan.started){waitForPresence(freshIdle===null);return;}
       }
       const action=settings.action;reset(); actionInProgress=true;plan.phase='executing';broadcast();
-      try{await power.perform(action);message=power.names[action]+' requested.';plan.phase='completed';}
-      catch(ex){error='The system could not complete the action. '+ex.message;plan.phase='error';}
+      try{await power.perform(action);message=tr('msg.requested',{action:actionName(action)});plan.phase='completed';}
+      catch(ex){error=tr('error.actionFailed',{error:i18n.monitorText(ex.message)});plan.phase='error';}
       finally{actionInProgress=false;}
     }
   }
@@ -571,54 +576,54 @@ async function tick(){
 // Manual exclusions live only in this app process. The monitor continues reading
 // every record; a changed source-generation token automatically restores the row.
 function restartManualWait(){
-  if(plan.phase==='countdown'&&plan.timer){reset();message='Timer countdown stopped while reviewing activity. Start a new timer when ready.';}
+  if(plan.phase==='countdown'&&plan.timer){reset();message=tr('msg.timerReviewStopped');}
   else if(['waiting','idle','countdown'].includes(plan.phase)&&!plan.timer){plan={phase:'waiting',until:null,started:null};lastRevision=null;dismissCountdownNotification();}
 }
 async function freshManualEntry(provider,session,token){
   await waitForScan();const serial=scanSerial;await scan();
   const age=Date.now()-Date.parse(rawSnapshot?.checkedUtc);
-  if(scanSerial===serial||error||!Number.isFinite(age)||age<0||age>3000)throw new Error('Current activity could not be verified. Nothing was dismissed.');
+  if(scanSerial===serial||error||!Number.isFinite(age)||age<0||age>3000)throw new Error(tr('error.cannotVerifyActivity'));
   const entry=inspect(rawSnapshot,provider,session);
-  if(!entry||entry.token!==token)throw new Error('This entry changed. Nothing was dismissed; review its current activity and try again.');
+  if(!entry||entry.token!==token)throw new Error(tr('error.entryChanged'));
   return entry;
 }
 async function dismissChat(provider,session,token){
-  if(manualReview||actionInProgress||quitting)throw new Error('Activity cannot be reviewed right now.');
+  if(manualReview||actionInProgress||quitting)throw new Error(tr('error.cannotReview'));
   manualReview=true;restartManualWait();broadcast();
   try{
     const entry=await freshManualEntry(provider,session,token);
-    const choice=await dialog.showMessageBox(window,{type:'warning',title:'Dismiss running prompts?',
-      buttons:['Cancel','Dismiss current prompts'],defaultId:0,cancelId:0,noLink:true,
-      checkboxLabel:'I understand a power plan may proceed while this agent is still working',checkboxChecked:false,
-      message:'Dismiss '+entry.promptCount+' current '+provider+' prompt'+(entry.promptCount===1?'':'s')+'?',
-      detail:'These prompts will no longer block an AI-based power plan, even if the agent is still working. A pending '+(power.names[settings.action]||settings.action)+' plan may proceed after its quiet period and countdown. This does not stop the agent. New observed activity brings the entry back. Background tasks, unverified work and app-window monitoring still block the plan. Restore dismissed entries below the running list, or restart Quiet AI, to undo.'});
+    const choice=await dialog.showMessageBox(window,{type:'warning',title:tr('dismiss.title'),
+      buttons:[tr('dismiss.cancel'),tr('dismiss.confirm')],defaultId:0,cancelId:0,noLink:true,
+      checkboxLabel:tr('dismiss.checkbox'),checkboxChecked:false,
+      message:tr('dismiss.message',{count:entry.promptCount,provider}),
+      detail:tr('dismiss.detail',{action:actionName(settings.action)})});
     if(choice.response!==1)return;
     // Native button-key mappings vary. Return alone must never grant this override.
-    if(choice.checkboxChecked!==true){message='Nothing was dismissed. Acknowledge the warning and choose Dismiss to confirm.';return;}
-    if(quitting||window.isDestroyed()||actionInProgress)throw new Error('Quiet AI is closing or performing an action. Nothing was dismissed.');
+    if(choice.checkboxChecked!==true){message=tr('msg.dismissNotAcknowledged');return;}
+    if(quitting||window.isDestroyed()||actionInProgress)throw new Error(tr('error.closingOrActing'));
     await freshManualEntry(provider,session,token);
     dismissedWork.dismiss(rawSnapshot,provider,session,token);
     snapshot=applyWindows(dismissedWork.apply(rawSnapshot));
-    message='Current prompts dismissed. They no longer block an AI-based power plan; the agent keeps running.';
+    message=tr('msg.dismissed');
   }finally{restartManualWait();manualReview=false;broadcast();}
 }
 function restoreDismissed(){
-  if(manualReview||actionInProgress)throw new Error('Wait until the current review or action finishes.');
+  if(manualReview||actionInProgress)throw new Error(tr('error.waitForReview'));
   const count=dismissedWork.restore();
-  if(count){snapshot=applyWindows(dismissedWork.apply(rawSnapshot));restartManualWait();message='Dismissed entries restored. Current running prompts block AI-based power plans again.';}
+  if(count){snapshot=applyWindows(dismissedWork.apply(rawSnapshot));restartManualWait();message=tr('msg.restored');}
   broadcast();
 }
 function chatMenu(payload){
-  if(manualReview||actionInProgress)throw new Error('Activity cannot be reviewed right now.');
+  if(manualReview||actionInProgress)throw new Error(tr('error.cannotReview'));
   const chat=snapshot?.chats?.find(c=>c.provider===payload.provider&&c.session===payload.session);
-  if(!chat)throw new Error('This entry is no longer running.');
+  if(!chat)throw new Error(tr('error.notRunning'));
   const entry=inspect(rawSnapshot,chat.provider,chat.session);
   const allowed=!!entry&&!chat.fromWindow&&chat.dismissible===true&&payload.token===entry.token;
-  const menu=Menu.buildFromTemplate([{label:'Dismiss current prompts…',enabled:allowed,click:()=>{
+  const menu=Menu.buildFromTemplate([{label:tr('dismiss.menu'),enabled:allowed,click:()=>{
     if(!allowed)return;
-    dismissChat(chat.provider,chat.session,entry.token).catch(ex=>{message=ex.message;broadcast();});
-  }},...(!allowed?[{label:'Cannot verify individual prompt activity',enabled:false}]:[]),
-    {type:'separator'},{label:'Restore dismissed entries',enabled:dismissedWork.count>0,click:()=>{try{restoreDismissed();}catch(ex){message=ex.message;broadcast();}}}]);
+    dismissChat(chat.provider,chat.session,entry.token).catch(ex=>{message=i18n.monitorText(ex.message);broadcast();});
+  }},...(!allowed?[{label:tr('dismiss.cannotVerify'),enabled:false}]:[]),
+    {type:'separator'},{label:tr('dismiss.restoreAll'),enabled:dismissedWork.count>0,click:()=>{try{restoreDismissed();}catch(ex){message=ex.message;broadcast();}}}]);
   menu.popup({window});
 }
 
@@ -632,20 +637,20 @@ async function checkUpdate(manual){
   update={...update,phase:'checking',error:''};if(manual)broadcast();
   try{update.info=await updater.check();update.phase='idle';activity('update-check',{latest:update.info.latest,available:update.info.available});}
   catch(ex){update.phase='idle';if(manual)update.error=ex.message;}
-  if(manual)message=update.error?'':update.info?.available?'Quiet AI '+update.info.latest+' is available.':'You have the latest version.';
+  if(manual)message=update.error?'':update.info?.available?tr('msg.updateAvailable',{version:update.info.latest}):tr('msg.latest');
   broadcast();
 }
 async function installUpdate(){
-  if(!update.info?.available)throw new Error('There’s no update to install.');
-  if(active())throw new Error('Stop the plan before updating. Quiet AI restarts to finish the update.');
-  if(['checking','downloading','installing'].includes(update.phase))throw new Error('Already working on it.');
+  if(!update.info?.available)throw new Error(tr('error.noUpdate'));
+  if(active())throw new Error(tr('error.stopBeforeUpdate'));
+  if(['checking','downloading','installing'].includes(update.phase))throw new Error(tr('error.alreadyWorking'));
   const place=updater.installation();
   if(place.problem)throw new Error(place.problem);
-  if(!place.writable){shell.openExternal(update.info.page);throw new Error('Quiet AI can’t write to its own folder, so the download page was opened instead.');}
+  if(!place.writable){shell.openExternal(update.info.page);throw new Error(tr('error.cantWrite'));}
   update={...update,phase:'downloading',progress:0,error:''};broadcast();
   try{
     const unpacked=await updater.download(update.info,place,p=>{update.progress=p;broadcast();});
-    if(active())throw new Error('A plan was started during the download, so the update was not installed.');
+    if(active())throw new Error(tr('error.planStartedDuringDownload'));
     update.phase='installing';broadcast();
     activity('update-install',{from:VERSION,to:update.info.latest});
     try{await updater.install(unpacked,place,activityFile);}
@@ -653,7 +658,7 @@ async function installUpdate(){
       // The hand-over didn't start: stay open, clean up, and offer the manual download instead.
       try{fs.rmSync(unpacked.work,{recursive:true,force:true});}catch{}
       activity('update-handover-failed',{message:ex.message});shell.openExternal(update.info.page);
-      throw new Error(ex.message+' The download page was opened instead.');
+      throw new Error(tr('error.downloadPageOpened',{error:ex.message}));
     }
     setTimeout(()=>{reset();app.quit();},300);
   }catch(ex){update={...update,phase:'idle',progress:0,error:ex.message};broadcast();throw ex;}
@@ -667,62 +672,87 @@ function validateUpdate(update){
   for(const key of ['quietMinutes','countdownSeconds','timerMinutes','awayMinutes']){const value=Number(update[key]);if(Number.isFinite(value)&&value>=1&&value<=(key==='countdownSeconds'?600:1440))result[key]=value;}
   return result;
 }
+// ——— Language ———
+// Switching applies at once: the window and countdown banners re-render from the broadcast state,
+// and the tray tooltip/menu, the macOS menu and later notifications and dialogs use the new strings.
+function setLanguage(language){
+  settings.language=i18n.setLanguage(language);save();
+  if(preview)previewData(previewStarted);
+  setApplicationMenu();trayTip='';trayMenuKey='';broadcast();
+}
+function setApplicationMenu(){
+  if(process.platform!=='darwin'){Menu.setApplicationMenu(null);return;}
+  Menu.setApplicationMenu(Menu.buildFromTemplate([
+    {label:'Quiet AI',submenu:[{role:'about',label:tr('menu.about')},{type:'separator'},{role:'hide',label:tr('menu.hide')},{role:'hideOthers',label:tr('menu.hideOthers')},{role:'unhide',label:tr('menu.showAll')},{type:'separator'},{role:'quit',label:tr('menu.quit')}]},
+    {label:tr('menu.edit'),submenu:[{role:'copy',label:tr('menu.copy')},{role:'paste',label:tr('menu.paste')},{role:'selectAll',label:tr('menu.selectAll')}]},
+    {label:tr('menu.window'),submenu:[{label:tr('tray.open'),accelerator:'CmdOrCtrl+Shift+O',click:showWindow},{role:'minimize',label:tr('menu.minimize')},{role:'front',label:tr('menu.front')}]}]));
+}
+function quitDialog(){return{type:'question',buttons:[tr('dialog.keepRunning'),tr('dialog.quitAndCancel')],defaultId:0,cancelId:0,title:'Quiet AI',message:tr('dialog.quitMessage'),detail:tr('dialog.quitDetail')};}
+// Illustrative sessions for --preview screenshots, in the chosen language. Never a power plan.
+let previewStarted=0;
+function previewData(now){
+  previewStarted=now;
+  const folder=tr('preview.folder');
+  sources={codex:{detected:true,folder,origin:'User profile'},claude:{detected:true,folder,origin:'User profile'}};
+  snapshot={chatCount:3,backgroundRunning:1,scheduled:0,uncertain:0,clear:false,checkedUtc:new Date().toISOString(),chats:[{provider:'Codex',title:tr('preview.chat1'),session:'demo-1',startedUtc:new Date(now-23*60000).toISOString()},{provider:'Codex',title:tr('preview.chat2'),session:'demo-2',startedUtc:new Date(now-7*60000).toISOString()},{provider:'Claude',title:tr('preview.chat3'),session:'demo-3',startedUtc:new Date(now-64*60000).toISOString()}],codex:{enabled:true,connected:true,chatCount:2,detail:'Local sessions connected.'},claude:{enabled:true,connected:true,chatCount:1,detail:'Lifecycle hooks connected.'},work:[]};
+}
 ipcMain.handle('quiet:command',async(event,command,payload={})=>{
   if(event.sender!==window.webContents){
     // The countdown banners may only read the state and cancel.
     if(!overlays.some(o=>!o.isDestroyed()&&o.webContents===event.sender))throw new Error('Unknown window.');
     if(command==='state')return state();
-    if(command==='stop'){reset();message='Countdown cancelled. No power action is scheduled.';broadcast();return state();}
+    if(command==='stop'){reset();message=tr('msg.countdownCancelled');broadcast();return state();}
     throw new Error('Not allowed.');
   }
   if(command==='state')return state();
-  if(command==='stop'){reset();message='Plan stopped. No power action is scheduled.';broadcast();return state();}
+  if(command==='stop'){reset();message=tr('msg.planStopped');broadcast();return state();}
   if(command==='minimize'){if(settings.minimizeToTray)hideToTray();else window.minimize();return;}
   if(command==='close'){window.close();return;}
   if(command==='maximize'){window.isMaximized()?window.unmaximize():window.maximize();return;}
   if(command==='website'){shell.openExternal(WEBSITE);return state();}
-  if(command==='diagnostics'){clipboard.writeText(JSON.stringify({version:VERSION,platform:process.platform,phase:plan.phase,icons:iconReport,windows:{fresh:windowsFresh(),claude:windows.claude,codex:windows.codex,error:windows.error},retiredCodexTurns:Object.values(staleReasons).reduce((a,r)=>(a[r]=(a[r]||0)+1,a),{}),claudeCheck:claudeCheck&&{found:claudeCheck.found,events:claudeCheck.events,disabled:claudeCheck.disabled,ran:claudeCheck.ran,ok:claudeCheck.ok,exitCode:claudeCheck.exitCode},providers:snapshot?{codex:{enabled:snapshot.codex.enabled,connected:snapshot.codex.connected,chats:snapshot.codex.chatCount},claude:{enabled:snapshot.claude.enabled,connected:snapshot.claude.connected,chats:snapshot.claude.chatCount}}:null},null,2));message='Status summary copied. It contains no chat names or private paths.';broadcast();return state();}
+  if(command==='diagnostics'){clipboard.writeText(JSON.stringify({version:VERSION,platform:process.platform,language:settings.language,phase:plan.phase,icons:iconReport,windows:{fresh:windowsFresh(),claude:windows.claude,codex:windows.codex,error:windows.error},retiredCodexTurns:Object.values(staleReasons).reduce((a,r)=>(a[r]=(a[r]||0)+1,a),{}),claudeCheck:claudeCheck&&{found:claudeCheck.found,events:claudeCheck.events,disabled:claudeCheck.disabled,ran:claudeCheck.ran,ok:claudeCheck.ok,exitCode:claudeCheck.exitCode},providers:snapshot?{codex:{enabled:snapshot.codex.enabled,connected:snapshot.codex.connected,chats:snapshot.codex.chatCount},claude:{enabled:snapshot.claude.enabled,connected:snapshot.claude.connected,chats:snapshot.claude.chatCount}}:null},null,2));message=tr('msg.summaryCopied');broadcast();return state();}
   if(command==='chatMenu'){chatMenu(payload);return state();}
   if(command==='restoreDismissed'){restoreDismissed();return state();}
-  if(manualReview&&!['theme','tray','releasePage'].includes(command))throw new Error('Finish reviewing the running entry first.');
+  if(manualReview&&!['theme','language','tray','releasePage'].includes(command))throw new Error(tr('error.finishReview'));
   if(command==='theme'){if(THEMES.includes(payload.theme)){settings.theme=payload.theme;nativeTheme.themeSource=settings.theme;save();}broadcast();return state();}
+  if(command==='language'){if(i18n.LANGUAGES.includes(payload.language))setLanguage(payload.language);return state();} // allowed while armed
   if(command==='checkUpdate'){await checkUpdate(true);return state();}
   if(command==='installUpdate'){await installUpdate();return state();}
   if(command==='releasePage'){shell.openExternal(update.info?.page||'https://github.com/'+updater.REPO+'/releases');return state();}
   if(command==='tray'){settings.minimizeToTray=payload.on===true;save();broadcast();return state();} // allowed while armed
-  if(active())throw new Error('Stop the plan before changing its settings.');
+  if(active())throw new Error(tr('error.stopBeforeChange'));
   if(command==='update'){Object.assign(settings,validateUpdate(payload));sources=discover(settings);save();await scan();return state();}
-  if(command==='discover'){sources=discover(settings);if(!settings.codexSessionsOverride)settings.codexEnabled=sources.codex.detected;if(!settings.claudeHomeOverride)settings.claudeEnabled=sources.claude.detected;save();message='Discovery refreshed. Manual folder choices are retained.';await scan();return state();}
+  if(command==='discover'){sources=discover(settings);if(!settings.codexSessionsOverride)settings.codexEnabled=sources.codex.detected;if(!settings.claudeHomeOverride)settings.claudeEnabled=sources.claude.detected;save();message=tr('msg.discovery');await scan();return state();}
   if(command==='browse'){
     if(!['codex','claude'].includes(payload.provider))throw new Error('Unknown provider.');
-    const selection=await dialog.showOpenDialog(window,{title:payload.provider==='codex'?'Select the Codex sessions folder':'Select the Claude configuration folder',properties:['openDirectory']});
+    const selection=await dialog.showOpenDialog(window,{title:tr(payload.provider==='codex'?'dialog.browseCodex':'dialog.browseClaude'),properties:['openDirectory']});
     if(!selection.canceled){settings[payload.provider==='codex'?'codexSessionsOverride':'claudeHomeOverride']=selection.filePaths[0];settings[payload.provider+'Enabled']=true;sources=discover(settings);save();await scan();}return state();
   }
   if(command==='checkClaude'){
-    if(operation)throw new Error('Already working on it.');
+    if(operation)throw new Error(tr('error.alreadyWorking'));
     operation='check';broadcast();
     try{claudeCheck=await checkClaude();claudeCheck.at=Date.now();}
     finally{operation=null;}
-    message=claudeCheck.ok?'The hook works. If prompts still aren’t tracked, Claude Code isn’t loading this settings file — see Settings.':'';
-    error=claudeCheck.ok?'':'Claude Code connection: '+claudeCheck.problem;
+    message=claudeCheck.ok?tr('msg.hookWorks'):'';
+    error=claudeCheck.ok?'':tr('error.claudeConnection',{problem:tr(claudeCheck.problemKey,claudeCheck.problemParams)});
     broadcast();return state();
   }
   if(command==='install'||command==='remove'){
-    if(operation)throw new Error('Already working on it.');
+    if(operation)throw new Error(tr('error.alreadyWorking'));
     operation=command;error='';message='';broadcast();
     try{
       await waitForScan();
       busy=true;
       const result=await agent.request(command,options());
       settings.claudeEnabled=command==='install';save();
-      message=command==='install'?'Claude Code connected. Restart any Claude Code sessions that were already open so they load the hook.':'Quiet AI’s hooks were removed from Claude Code. Your other hooks are untouched.';
-    }catch(ex){error=(command==='install'?'Couldn’t connect Claude Code: ':'Couldn’t disconnect Claude Code: ')+ex.message;throw new Error(error);}
+      message=tr(command==='install'?'msg.claudeConnected':'msg.claudeRemoved');
+    }catch(ex){error=tr(command==='install'?'error.connectFailed':'error.disconnectFailed',{error:i18n.monitorText(ex.message)});throw new Error(error);}
     finally{busy=false;operation=null;broadcast();}
     await scan();return state();
   }
   if(command==='arm'){
-    if(preview)throw new Error('Design preview does not schedule power actions.');
-    if(settings.scheduleMode==='Codex'&&!settings.codexEnabled&&!settings.claudeEnabled)throw new Error('Switch on Codex or Claude Code in Settings first.');
+    if(preview)throw new Error(tr('error.previewNoPower'));
+    if(settings.scheduleMode==='Codex'&&!settings.codexEnabled&&!settings.claudeEnabled)throw new Error(tr('error.enableProvider'));
     error='';message='';lastRevision=null;
     plan=settings.scheduleMode==='Timer'?{phase:'timer',started:Date.now(),until:Date.now()+settings.timerMinutes*60000}:{phase:'waiting',started:null,until:null};
     if(settings.scheduleMode==='Codex')await scan();broadcast();return state();
@@ -734,10 +764,10 @@ app.on('activate',showWindow); // Dock activation must restore a window hidden i
 app.whenReady().then(()=>{
   if(!primaryInstance)return;
   loadSettings();
-  if(preview){settings.codexEnabled=settings.claudeEnabled=true;sources={codex:{detected:true,folder:'Automatically detected',origin:'User profile'},claude:{detected:true,folder:'Automatically detected',origin:'User profile'}}; snapshot={chatCount:3,backgroundRunning:1,scheduled:0,uncertain:0,clear:false,checkedUtc:new Date().toISOString(),chats:[{provider:'Codex',title:'Build the next release',session:'demo-1',startedUtc:new Date(Date.now()-23*60000).toISOString()},{provider:'Codex',title:'Polish the settings experience',session:'demo-2',startedUtc:new Date(Date.now()-7*60000).toISOString()},{provider:'Claude',title:'Review the documentation',session:'demo-3',startedUtc:new Date(Date.now()-64*60000).toISOString()}],codex:{enabled:true,connected:true,chatCount:2,detail:'Local sessions connected.'},claude:{enabled:true,connected:true,chatCount:1,detail:'Lifecycle hooks connected.'},work:[]};}
+  if(preview){settings.codexEnabled=settings.claudeEnabled=true;previewData(Date.now());}
   const executable=path.join(__dirname,'agent',process.platform==='win32'?'QuietAI.Agent.exe':'QuietAI.Agent');
   agent=new Agent(executable,stateRoot);
-  Menu.setApplicationMenu(process.platform==='darwin'?Menu.buildFromTemplate([{label:'Quiet AI',submenu:[{role:'about'},{type:'separator'},{role:'hide'},{role:'hideOthers'},{role:'unhide'},{type:'separator'},{role:'quit'}]},{label:'Edit',submenu:[{role:'copy'},{role:'paste'},{role:'selectAll'}]},{label:'Window',submenu:[{label:'Open Quiet AI',accelerator:'CmdOrCtrl+Shift+O',click:showWindow},{role:'minimize'},{role:'front'}]}]):null);
+  setApplicationMenu();
   window=new BrowserWindow({title:'Quiet AI',width:460,height:690,minWidth:420,minHeight:640,maximizable:false,fullscreenable:false,show:false,backgroundColor:themeBackground(),frame:process.platform==='darwin',titleBarStyle:process.platform==='darwin'?'hiddenInset':undefined,trafficLightPosition:{x:16,y:15},icon:path.join(__dirname,'icon.png'),webPreferences:{preload:path.join(__dirname,'preload.js'),nodeIntegration:false,contextIsolation:true,sandbox:true}});
   nativeTheme.on('updated',()=>{if(window&&!window.isDestroyed())window.setBackgroundColor(themeBackground());broadcast();});
   window.webContents.setWindowOpenHandler(()=>({action:'deny'}));
@@ -755,13 +785,13 @@ app.whenReady().then(()=>{
     if(!quitting&&process.platform==='darwin'&&settings.minimizeToTray&&tray&&!process.argv.includes('--capture')){event.preventDefault();hideToTray();return;}
     if(!quitting&&active()&&plan.phase!=='executing'&&!process.argv.includes('--capture')){
       showWindow();
-      const choice=dialog.showMessageBoxSync(window,{type:'question',buttons:['Keep running','Quit and cancel plan'],defaultId:0,cancelId:0,title:'Quiet AI',message:'Quit Quiet AI?',detail:'Your plan is still running. Quitting cancels it, and the computer will stay on.'});
+      const choice=dialog.showMessageBoxSync(window,quitDialog());
       if(choice===0){event.preventDefault();return;}
     }
     reset();
   });
-  window.webContents.on('render-process-gone',()=>{reset();error='The interface stopped. The power plan was cancelled.';});
-  window.on('unresponsive',()=>{reset();error='The interface is not responding. The power plan was cancelled.';});
+  window.webContents.on('render-process-gone',()=>{reset();error=tr('error.interfaceStopped');});
+  window.on('unresponsive',()=>{reset();error=tr('error.interfaceUnresponsive');});
   for(const e of ['suspend','resume','lock-screen','unlock-screen','shutdown'])powerMonitor.on(e,()=>activity('power',{what:e,phase:plan.phase}));
   activity('start',{version:VERSION,phase:plan.phase});
   if(!preview)findProviderIcons(); // preview (screenshots) keeps neutral tiles: no third-party logos
@@ -775,7 +805,7 @@ app.on('will-quit',()=>{try{tray?.destroy();}catch{}tray=null;});
 app.on('before-quit',event=>{
   if(active()&&plan.phase!=='executing'&&!process.argv.includes('--capture')&&window&&!window.isDestroyed()){
     showWindow();
-    const choice=dialog.showMessageBoxSync(window,{type:'question',buttons:['Keep running','Quit and cancel plan'],defaultId:0,cancelId:0,title:'Quiet AI',message:'Quit Quiet AI?',detail:'Your plan is still running. Quitting cancels it, and the computer will stay on.'});
+    const choice=dialog.showMessageBoxSync(window,quitDialog());
     if(choice===0){event.preventDefault();return;}
   }
   quitting=true;reset();syncBlocker();agent?.close();try{windowWatcher?.kill();}catch{}

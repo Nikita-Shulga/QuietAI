@@ -5,12 +5,13 @@ const test=require('node:test'),assert=require('node:assert/strict');
 const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),vm=require('node:vm');
 const {EventEmitter}=require('node:events');
 const source=path.resolve(__dirname,'../../desktop');
-function fixture(platform='darwin'){
+function fixture(platform='darwin',options={}){
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'quietai-platform-unit-'));
   let ready,clock=1000000,idle=7200,quitAnswer=0,afterScan=null,scanValue=null,dialogAnswer=0,dialogAcknowledged=false,dialogHook=null,powerHook=null,ipc;
-  const dialogs=[],menus=[];
+  const dialogs=[],menus=[];let appMenu=null;
+  if(options.settings)fs.writeFileSync(path.join(root,'settings.json'),JSON.stringify(options.settings));
   const performed=[],blocks=new Set(),notifications=[];
-  const app=new EventEmitter();Object.assign(app,{setPath(){},setName(){},setAppUserModelId(){},getPath:()=>root,requestSingleInstanceLock:()=>true,whenReady:()=>({then:fn=>{ready=fn;}}),quit(){const event={preventDefault(){this.prevented=true;}};app.emit('before-quit',event);return event;}});
+  const app=new EventEmitter();Object.assign(app,{setPath(){},setName(){},setAppUserModelId(){},getPath:()=>root,requestSingleInstanceLock:()=>true,getLocale:()=>options.locale||'en-US',getSystemLocale:()=>options.locale||'en-US',getPreferredSystemLanguages:()=>[options.locale||'en-US'],whenReady:()=>({then:fn=>{ready=fn;}}),quit(){const event={preventDefault(){this.prevented=true;}};app.emit('before-quit',event);return event;}});
   class Window extends EventEmitter{
     constructor(options){super();this.options=options;this.visible=true;this.minimized=false;this.destroyed=false;this.webContents=new EventEmitter();Object.assign(this.webContents,{setWindowOpenHandler(){},send(){},once:()=>{}});}
     isDestroyed(){return this.destroyed;}destroy(){this.destroyed=true;this.emit('closed');}isMinimized(){return this.minimized;}restore(){this.minimized=false;}show(){this.visible=true;}hide(){this.visible=false;}focus(){}minimize(){this.minimized=true;this.emit('minimize');}isVisible(){return this.visible;}loadFile(){}setAlwaysOnTop(){}flashFrame(){}setBackgroundColor(){}setVisibleOnAllWorkspaces(_visible,options){this.workspaceOptions=options;}showInactive(){}moveTop(){}
@@ -22,15 +23,15 @@ function fixture(platform='darwin'){
   class Notification extends EventEmitter{static isSupported(){return true;}constructor(options){super();this.options=options;this.closed=false;notifications.push(this);}show(){this.emit('show');}close(){this.closed=true;}}
   const quiet=()=>{const p={enabled:true,connected:true,clear:true,chatCount:0,work:[],chats:[],detail:'Connected'};return{codex:{...p},claude:{...p},work:[],chats:[],chatCount:0,clear:true,checkedUtc:new Date(clock).toISOString()};};
   class Agent{async request(){if(afterScan)await afterScan();if(scanValue instanceof Error)throw scanValue;const s=scanValue?structuredClone(scanValue):quiet();s.checkedUtc=new Date(clock).toISOString();return{snapshot:s};}close(){}}
-  const electron={app,BrowserWindow:Window,Tray,nativeTheme,powerMonitor,nativeImage:{createFromPath:()=>image,createFromDataURL:()=>image},Menu:{buildFromTemplate:items=>({items,popup(){menus.push(this);}}),setApplicationMenu(){}},ipcMain:{handle(_name,fn){ipc=fn;}},dialog:{showMessageBoxSync:()=>quitAnswer,async showMessageBox(_window,options){dialogs.push(options);if(dialogHook)await dialogHook();return{response:dialogAnswer,checkboxChecked:dialogAcknowledged};}},Notification,powerSaveBlocker:{start(){const id=blocks.size+1;blocks.add(id);return id;},stop:id=>blocks.delete(id)},shell:{beep(){}},clipboard:{},screen:{getAllDisplays:()=>[{workArea:{x:0,y:0,width:1920,height:1080}}]}};
-  const processDouble={platform,argv:['unit-test'],env:{QUIETAI_PROFILE:root,LOCALAPPDATA:root,QUIETAI_TEST_HOOKS:'1'}};
-  const context=vm.createContext({Buffer,console,performance,process:processDouble,__dirname:source,setInterval(){},setTimeout(){},setImmediate,Date:class extends Date{static now(){return clock;}},require(name){if(name==='electron')return electron;if(name==='node:child_process')return{execFile(){},spawn(){throw new Error('No subprocesses in unit fixtures');}};if(name==='./dismissed-work')return require(path.join(source,'dismissed-work'));if(name==='./agent')return Agent;if(name==='./discovery')return{discover:()=>({codex:{detected:true,folder:root},claude:{detected:true,folder:root}})};if(name==='./power')return{actions:['Sleep','Shutdown','Restart','Display'],names:{Sleep:'Sleep'},perform:async action=>{performed.push(action);if(powerHook)await powerHook();}};if(name==='./updater')return{REPO:''};if(name==='./mac-icons')return{bundles:()=>new Promise(()=>{}),icon:async()=>null};if(name==='./package.json')return require(path.join(source,'package.json'));return require(name);}});
+  const electron={app,BrowserWindow:Window,Tray,nativeTheme,powerMonitor,nativeImage:{createFromPath:()=>image,createFromDataURL:()=>image},Menu:{buildFromTemplate:items=>({items,popup(){menus.push(this);}}),setApplicationMenu(menu){appMenu=menu;}},ipcMain:{handle(_name,fn){ipc=fn;}},dialog:{showMessageBoxSync:()=>quitAnswer,async showMessageBox(_window,options){dialogs.push(options);if(dialogHook)await dialogHook();return{response:dialogAnswer,checkboxChecked:dialogAcknowledged};}},Notification,powerSaveBlocker:{start(){const id=blocks.size+1;blocks.add(id);return id;},stop:id=>blocks.delete(id)},shell:{beep(){}},clipboard:{},screen:{getAllDisplays:()=>[{workArea:{x:0,y:0,width:1920,height:1080}}]}};
+  const processDouble={platform,argv:['unit-test'],env:{QUIETAI_PROFILE:root,LOCALAPPDATA:root,QUIETAI_TEST_HOOKS:'1',...(options.locale?{LANG:options.locale.replace('-','_')+'.UTF-8',LC_ALL:options.locale.replace('-','_')+'.UTF-8'}:{})}};
+  const context=vm.createContext({Buffer,console,performance,process:processDouble,__dirname:source,setInterval(){},setTimeout(){},setImmediate,Date:class extends Date{static now(){return clock;}},require(name){if(name==='electron')return electron;if(name==='node:child_process')return{execFile(){},spawn(){throw new Error('No subprocesses in unit fixtures');}};if(name==='./dismissed-work')return require(path.join(source,'dismissed-work'));if(name==='./i18n')return require(path.join(source,'i18n'));if(name==='./agent')return Agent;if(name==='./discovery')return{discover:()=>({codex:{detected:true,folder:root},claude:{detected:true,folder:root}})};if(name==='./power')return{actions:['Sleep','Shutdown','Restart','Display'],names:{Sleep:'Sleep'},perform:async action=>{performed.push(action);if(powerHook)await powerHook();}};if(name==='./updater')return{REPO:''};if(name==='./mac-icons')return{bundles:()=>new Promise(()=>{}),icon:async()=>null};if(name==='./package.json')return require(path.join(source,'package.json'));return require(name);}});
   vm.runInContext('globalThis.global=globalThis;',context);
   vm.runInContext(fs.readFileSync(path.join(source,'main.js'),'utf8'),context,{filename:'main.js'});
   const evaluate=code=>vm.runInContext(code,context);
   ready();
   evaluate('settings.waitForAway=true; settings.awayMinutes=10; snapshot={clear:true,checkedUtc:new Date(Date.now()).toISOString()};');
-  return{evaluate,app,performed,blocks,notifications,dialogs,menus,command:(name,payload)=>ipc({sender:evaluate('window.webContents')},name,payload),scanValue(value){scanValue=value;},dialogAnswer(value){dialogAnswer=value;},dialogAcknowledged(value){dialogAcknowledged=value;},dialogHook(fn){dialogHook=fn;},powerHook(fn){powerHook=fn;},idle(value){idle=value;},quitAnswer(value){quitAnswer=value;},afterScan(fn){afterScan=fn;},cleanup(){fs.rmSync(root,{recursive:true,force:true});}};
+  return{root,appMenu:()=>appMenu,evaluate,app,performed,blocks,notifications,dialogs,menus,command:(name,payload)=>ipc({sender:evaluate('window.webContents')},name,payload),scanValue(value){scanValue=value;},dialogAnswer(value){dialogAnswer=value;},dialogAcknowledged(value){dialogAcknowledged=value;},dialogHook(fn){dialogHook=fn;},powerHook(fn){powerHook=fn;},idle(value){idle=value;},quitAnswer(value){quitAnswer=value;},afterScan(fn){afterScan=fn;},cleanup(){fs.rmSync(root,{recursive:true,force:true});}};
 }
 
 test('mac tray builds current menu on each click and Stop cancels safely',()=>{
@@ -160,3 +161,56 @@ test('tracker invalidity clears override and returns the raw blocking record',as
 
 for(const platform of ['darwin','win32'])for(const ack of [false,undefined,null,'true',1])test(platform+' native Return/Dismiss response without explicit true acknowledgment cannot exclude work: '+String(ack),async()=>{const f=await runningFixture(platform);try{const token=f.evaluate('snapshot.chats[0].dismissToken');f.dialogAnswer(1);f.dialogAcknowledged(ack);await f.evaluate(`dismissChat('Codex','one','${token}')`);assert.equal(f.evaluate('dismissedWork.count'),0);assert.equal(f.evaluate('snapshot.clear'),false);assert.equal(f.evaluate('snapshot.chatCount'),1);assert.match(f.evaluate('message'),/Nothing was dismissed/);assert.equal(f.performed.length,0);}finally{f.cleanup();}});
 for(const platform of ['darwin','win32'])test(platform+' Cancel still cancels after checkbox was explicitly checked',async()=>{const f=await runningFixture(platform);try{const token=f.evaluate('snapshot.chats[0].dismissToken');f.dialogAnswer(0);f.dialogAcknowledged(true);await f.evaluate(`dismissChat('Codex','one','${token}')`);assert.equal(f.evaluate('dismissedWork.count'),0);assert.equal(f.evaluate('snapshot.clear'),false);assert.equal(f.performed.length,0);}finally{f.cleanup();}});
+
+// ——— Interface language ———
+const savedSettings=f=>JSON.parse(fs.readFileSync(path.join(f.root,'settings.json'),'utf8'));
+const trayLabels=f=>{f.evaluate("tray.emit('click');");return JSON.parse(f.evaluate('JSON.stringify(tray.popup.items.map(x=>x.label??null))'));};
+test('a new install starts in English even on a Russian system',()=>{
+  const f=fixture('darwin',{locale:'ru-RU'});try{
+    assert.equal(f.evaluate('settings.language'),'en');assert.equal(savedSettings(f).language,'en');
+    assert.deepEqual(trayLabels(f).slice(2),['Open Quiet AI','Stop plan',null,'Quit Quiet AI']);
+    assert.equal(f.appMenu().items[1].label,'Edit');
+  }finally{f.cleanup();}
+});
+test('existing settings without a language stay English and keep their values; a saved choice is restored',()=>{
+  let f=fixture('win32',{settings:{action:'Shutdown',theme:'dark',quietMinutes:15},locale:'ru-RU'});try{
+    assert.equal(f.evaluate('settings.language'),'en');assert.equal(f.evaluate('settings.action'),'Shutdown');assert.equal(f.evaluate('settings.quietMinutes'),15);
+  }finally{f.cleanup();}
+  f=fixture('darwin',{settings:{language:'ru'}});try{
+    assert.equal(f.evaluate('settings.language'),'ru');assert.equal(trayLabels(f)[3],'Остановить план');assert.equal(f.appMenu().items[1].label,'Правка');
+  }finally{f.cleanup();}
+  f=fixture('darwin',{settings:{language:'de'}});try{assert.equal(f.evaluate('settings.language'),'en');}finally{f.cleanup();}
+});
+test('switching language updates tray, menus, notifications and messages at once, even while armed',async()=>{
+  const f=fixture();try{
+    f.evaluate("plan={phase:'waiting'};broadcast();");
+    await f.command('language',{language:'ru'});
+    assert.equal(f.evaluate('plan.phase'),'waiting');assert.equal(savedSettings(f).language,'ru');
+    assert.equal(f.evaluate('tray.tip'),'Quiet AI — План активен, ожидание');
+    assert.deepEqual(trayLabels(f),['План активен, ожидание',null,'Открыть Quiet AI','Остановить план',null,'Завершить Quiet AI']);
+    assert.equal(f.appMenu().items[2].label,'Окно');
+    f.evaluate("settings.waitForAway=true;settings.countdownSeconds=60;plan={phase:'countdown',timer:false,started:Date.now(),until:Date.now()+60000};announceCountdown();broadcast();");
+    const note=f.notifications.at(-1);
+    assert.equal(note.options.title,'Спящий режим через 60 секунд');
+    assert.equal(note.options.body,'ИИ закончил работу. Для отмены пошевелите мышью или нажмите на это уведомление.');
+    assert.match(f.evaluate('tray.tip'),/^Quiet AI — Спящий режим через 1:00\u00a0— откройте меню, чтобы отменить$/);
+    assert.equal(trayLabels(f)[3],'Отменить отсчёт');
+    note.emit('click');assert.equal(f.evaluate('plan.phase'),'disarmed');assert.equal(f.evaluate('message'),'Отсчёт отменён\u00a0— с компьютером ничего не произойдёт.');assert.equal(f.performed.length,0);
+    await f.command('language',{language:'xx'});assert.equal(f.evaluate('settings.language'),'ru');
+    await f.command('language',{language:'en'});
+    assert.equal(f.evaluate('tray.tip'),'Quiet AI — Not armed');assert.equal(trayLabels(f)[3],'Stop plan');assert.equal(savedSettings(f).language,'en');
+  }finally{f.cleanup();}
+});
+test('Russian quit and dismissal dialogs keep the same safe defaults',async()=>{
+  const f=await runningFixture('win32');try{
+    await f.command('language',{language:'ru'});
+    const token=f.evaluate('snapshot.chats[0].dismissToken');f.dialogAnswer(1);f.dialogAcknowledged(false);
+    await f.evaluate(`dismissChat('Codex','one','${token}')`);
+    const d=JSON.parse(JSON.stringify(f.dialogs.at(-1)));
+    assert.deepEqual([d.title,d.buttons,d.defaultId,d.cancelId,d.checkboxChecked],['Исключить выполняющиеся запросы?',['Отмена','Исключить запросы'],0,0,false]);
+    assert.equal(d.message,'Исключить 1 текущий запрос Codex?');assert.match(d.detail,/не останавливается/);assert.match(d.detail,/«Спящий режим»/);
+    assert.equal(f.evaluate('dismissedWork.count'),0);assert.match(f.evaluate('message'),/^Ничего не исключено/);
+    assert.equal(f.evaluate('quitDialog().buttons.join("|")'),'Не завершать|Завершить и отменить план');assert.equal(f.evaluate('quitDialog()').defaultId,0);
+    assert.equal(f.performed.length,0);
+  }finally{f.cleanup();}
+});

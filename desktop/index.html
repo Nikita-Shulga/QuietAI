@@ -7,10 +7,10 @@
       <span class="brand-name">Quiet <span>AI</span></span>
     </div>
     <div class="tb-actions">
-      <button id="open-settings" class="tb" aria-label="Settings" title="Settings"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 5h6.5M12 5h1.5M2.5 11h1.5M7 11h6.5"/><circle cx="10.5" cy="5" r="1.5"/><circle cx="5.5" cy="11" r="1.5"/></svg></button>
+      <button id="open-settings" class="tb" aria-label="Settings" title="Settings" data-i18n-label="window.settings" data-i18n-title="window.settings"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 5h6.5M12 5h1.5M2.5 11h1.5M7 11h6.5"/><circle cx="10.5" cy="5" r="1.5"/><circle cx="5.5" cy="11" r="1.5"/></svg></button>
       <span class="tb-sep win"></span>
-      <button id="minimize" class="tb win" aria-label="Minimize"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 8h7"/></svg></button>
-      <button id="close" class="tb win close" aria-label="Close"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 5l6 6M11 5l-6 6"/></svg></button>
+      <button id="minimize" class="tb win" aria-label="Minimize" data-i18n-label="window.minimize"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 8h7"/></svg></button>
+      <button id="close" class="tb win close" aria-label="Close" data-i18n-label="window.close"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 5l6 6M11 5l-6 6"/></svg></button>
     </div>
   </header>
 
@@ -29,22 +29,22 @@
     </section>
 
     <section class="block grow">
-      <div class="block-head"><h2>Running</h2><span id="running-note" class="note"></span></div>
+      <div class="block-head"><h2 data-i18n="section.running">Running</h2><span id="running-note" class="note"></span></div>
       <div class="panel list-panel">
-        <button id="banner" class="banner hidden" data-open-settings><i></i><span id="banner-text"></span><span class="banner-cta">Set up<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg></span></button>
-        <ul id="chat-list" class="chat-list" aria-label="Running chats"></ul>
-        <div id="dismissed-work" class="dismissed-work hidden"><span id="dismissed-count" role="status" aria-live="polite"></span><button id="restore-dismissed" type="button">Restore</button></div>
+        <button id="banner" class="banner hidden" data-open-settings><i></i><span id="banner-text"></span><span class="banner-cta"><span id="banner-cta-text">Set up</span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg></span></button>
+        <ul id="chat-list" class="chat-list" aria-label="Running chats" data-i18n-label="list.label"></ul>
+        <div id="dismissed-work" class="dismissed-work hidden"><span id="dismissed-count" role="status" aria-live="polite"></span><button id="restore-dismissed" type="button" data-i18n="dismissed.restore">Restore</button></div>
       </div>
     </section>
 
     <section class="block">
-      <div class="block-head"><h2>When it’s done</h2></div>
+      <div class="block-head"><h2 data-i18n="section.whenDone">When it’s done</h2></div>
       <div id="plan" class="panel plan">
-        <div class="prow"><span class="plabel">Trigger</span><button class="select" data-menu="scheduleMode" aria-haspopup="menu"><span class="select-value"></span><svg class="updown" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 6.5L8 4l2.5 2.5M5.5 9.5L8 12l2.5-2.5"/></svg></button></div>
-        <div class="prow"><span class="plabel">Action</span><button class="select" data-menu="action" aria-haspopup="menu"><span class="select-value"></span><svg class="updown" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 6.5L8 4l2.5 2.5M5.5 9.5L8 12l2.5-2.5"/></svg></button></div>
-        <div class="prow" id="idle-row"><span class="plabel">Quiet period</span><button class="select" data-menu="quietMinutes" aria-haspopup="menu"><span class="select-value"></span><svg class="updown" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 6.5L8 4l2.5 2.5M5.5 9.5L8 12l2.5-2.5"/></svg></button></div>
-        <div class="prow hidden" id="timer-row"><span class="plabel">Timer</span><button class="select" data-menu="timerMinutes" aria-haspopup="menu"><span class="select-value"></span><svg class="updown" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 6.5L8 4l2.5 2.5M5.5 9.5L8 12l2.5-2.5"/></svg></button></div>
-        <div class="prow"><span class="plabel">Time to cancel</span><button class="select" data-menu="countdownSeconds" aria-haspopup="menu"><span class="select-value"></span><svg class="updown" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 6.5L8 4l2.5 2.5M5.5 9.5L8 12l2.5-2.5"/></svg></button></div>
+        <div class="prow"><span class="plabel" data-i18n="plan.trigger">Trigger</span><button class="select" data-menu="scheduleMode" aria-haspopup="menu"><span class="select-value"></span><svg class="updown" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 6.5L8 4l2.5 2.5M5.5 9.5L8 12l2.5-2.5"/></svg></button></div>
+        <div class="prow"><span class="plabel" data-i18n="plan.action">Action</span><button class="select" data-menu="action" aria-haspopup="menu"><span class="select-value"></span><svg class="updown" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 6.5L8 4l2.5 2.5M5.5 9.5L8 12l2.5-2.5"/></svg></button></div>
+        <div class="prow" id="idle-row"><span class="plabel" data-i18n="plan.quietPeriod">Quiet period</span><button class="select" data-menu="quietMinutes" aria-haspopup="menu"><span class="select-value"></span><svg class="updown" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 6.5L8 4l2.5 2.5M5.5 9.5L8 12l2.5-2.5"/></svg></button></div>
+        <div class="prow hidden" id="timer-row"><span class="plabel" data-i18n="plan.timer">Timer</span><button class="select" data-menu="timerMinutes" aria-haspopup="menu"><span class="select-value"></span><svg class="updown" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 6.5L8 4l2.5 2.5M5.5 9.5L8 12l2.5-2.5"/></svg></button></div>
+        <div class="prow"><span class="plabel" data-i18n="plan.timeToCancel">Time to cancel</span><button class="select" data-menu="countdownSeconds" aria-haspopup="menu"><span class="select-value"></span><svg class="updown" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 6.5L8 4l2.5 2.5M5.5 9.5L8 12l2.5-2.5"/></svg></button></div>
       </div>
     </section>
   </main>
@@ -52,61 +52,68 @@
   <footer class="footer"><button id="arm" class="cta"><span id="cta-text">Start monitoring</span><kbd id="cta-key">↵</kbd></button></footer>
 
   <div id="menu" class="menu" role="menu" hidden></div>
-  <div id="notice" class="notice hidden" role="status"><span id="notice-text"></span><button id="dismiss-notice" aria-label="Dismiss"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 5l6 6M11 5l-6 6"/></svg></button></div>
+  <div id="notice" class="notice hidden" role="status"><span id="notice-text"></span><button id="dismiss-notice" aria-label="Dismiss" data-i18n-label="notice.dismiss"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 5l6 6M11 5l-6 6"/></svg></button></div>
 
-  <aside id="settings" class="sheet" aria-label="Settings" aria-hidden="true">
-    <div class="sheet-bar"><button id="close-settings" class="back"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 4L6 8l4 4"/></svg>Back</button><h2>Settings</h2><span></span></div>
+  <aside id="settings" class="sheet" aria-label="Settings" data-i18n-label="window.settings" aria-hidden="true">
+    <div class="sheet-bar"><button id="close-settings" class="back"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 4L6 8l4 4"/></svg><span data-i18n="settings.back">Back</span></button><h2 data-i18n="window.settings">Settings</h2><span></span></div>
     <div class="sheet-body">
-      <div class="block-head"><h2>Appearance</h2></div>
+      <div class="block-head"><h2 data-i18n="settings.appearance">Appearance</h2></div>
       <div class="panel">
         <div class="srow appearance">
-          <div id="theme-seg" class="seg" role="group" aria-label="Theme" data-value="system"><span class="seg-thumb" aria-hidden="true"></span>
-            <button data-theme="system"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3.2" width="11" height="7.6" rx="1.4"/><path d="M6 13h4"/></svg>System</button>
-            <button data-theme="light"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="2.6"/><path d="M8 1.8v1.4M8 12.8v1.4M1.8 8h1.4M12.8 8h1.4M3.6 3.6l1 1M11.4 11.4l1 1M3.6 12.4l1-1M11.4 4.6l1-1"/></svg>Light</button>
-            <button data-theme="dark"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M12.6 9.6A5 5 0 0 1 6.4 3.4 5 5 0 1 0 12.6 9.6Z"/></svg>Dark</button>
+          <div id="theme-seg" class="seg" role="group" aria-label="Theme" data-i18n-label="settings.theme" data-value="system"><span class="seg-thumb" aria-hidden="true"></span>
+            <button data-theme="system"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3.2" width="11" height="7.6" rx="1.4"/><path d="M6 13h4"/></svg><span data-i18n="theme.system">System</span></button>
+            <button data-theme="light"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="2.6"/><path d="M8 1.8v1.4M8 12.8v1.4M1.8 8h1.4M12.8 8h1.4M3.6 3.6l1 1M11.4 11.4l1 1M3.6 12.4l1-1M11.4 4.6l1-1"/></svg><span data-i18n="theme.light">Light</span></button>
+            <button data-theme="dark"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M12.6 9.6A5 5 0 0 1 6.4 3.4 5 5 0 1 0 12.6 9.6Z"/></svg><span data-i18n="theme.dark">Dark</span></button>
+          </div>
+        </div>
+        <div class="srow language"><div class="stext"><strong id="language-label" data-i18n="settings.language">Language</strong></div>
+          <div id="language-seg" class="seg" role="group" aria-labelledby="language-label" data-value="en"><span class="seg-thumb" aria-hidden="true"></span>
+            <button data-language="en" lang="en" aria-pressed="true">English</button>
+            <button data-language="ru" lang="ru" aria-pressed="false">Русский</button>
           </div>
         </div>
         <div class="srow head"><div class="stext"><strong id="tray-label">Minimize to tray</strong><small id="tray-description">Minimizing hides Quiet AI to the notification area. Hover its icon for the status; click it to open.</small></div><label class="switch"><input id="tray-toggle" type="checkbox" aria-label="Minimize to tray"><span></span></label></div>
       </div>
 
-      <div class="block-head"><h2>Safety</h2></div>
+      <div class="block-head"><h2 data-i18n="settings.safety">Safety</h2></div>
       <div class="panel">
-        <div class="srow head"><div class="stext"><strong>Wait until I’m away</strong><small id="away-detail"></small></div><label class="switch"><input id="away-toggle" type="checkbox" aria-label="Wait until I'm away"><span></span></label></div>
-        <div class="srow" id="away-row"><div class="stext"><strong>Away means</strong><small>No mouse or keyboard use for</small></div><button class="select" data-menu="awayMinutes" aria-haspopup="menu"><span class="select-value"></span><svg class="updown" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 6.5L8 4l2.5 2.5M5.5 9.5L8 12l2.5-2.5"/></svg></button></div>
+        <div class="srow head"><div class="stext"><strong data-i18n="away.title">Wait until I’m away</strong><small id="away-detail"></small></div><label class="switch"><input id="away-toggle" type="checkbox" aria-label="Wait until I'm away" data-i18n-label="away.label"><span></span></label></div>
+        <div class="srow" id="away-row"><div class="stext"><strong data-i18n="away.means">Away means</strong><small data-i18n="away.meansHint">No mouse or keyboard use for</small></div><button class="select" data-menu="awayMinutes" aria-haspopup="menu"><span class="select-value"></span><svg class="updown" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 6.5L8 4l2.5 2.5M5.5 9.5L8 12l2.5-2.5"/></svg></button></div>
       </div>
 
-      <div class="block-head"><h2>Sources</h2><button id="discover" class="link">Find folders again</button></div>
+      <div class="block-head"><h2 data-i18n="settings.sources">Sources</h2><button id="discover" class="link" data-i18n="settings.findAgain">Find folders again</button></div>
       <div class="panel">
-        <div class="srow head"><span class="picon lg" data-provider="codex"></span><div class="stext"><strong>Codex</strong><small id="codex-detail"></small></div><label class="switch"><input id="codex-toggle" type="checkbox" aria-label="Watch Codex"><span></span></label></div>
-        <div class="srow folder"><div class="stext"><small class="flabel">Sessions folder</small><span id="codex-folder" class="fpath"></span><small id="codex-origin" class="fstate"></small></div><div class="links"><button class="link browse" data-provider="codex">Change…</button><button class="link automatic" data-provider="codex">Use automatic</button></div></div>
+        <div class="srow head"><span class="picon lg" data-provider="codex"></span><div class="stext"><strong>Codex</strong><small id="codex-detail"></small></div><label class="switch"><input id="codex-toggle" type="checkbox" aria-label="Watch Codex" data-i18n-label="sources.watchCodex"><span></span></label></div>
+        <div class="srow folder"><div class="stext"><small class="flabel" data-i18n="sources.sessionsFolder">Sessions folder</small><span id="codex-folder" class="fpath"></span><small id="codex-origin" class="fstate"></small></div><div class="links"><button class="link browse" data-provider="codex" data-i18n="sources.change">Change…</button><button class="link automatic" data-provider="codex" data-i18n="sources.automatic">Use automatic</button></div></div>
       </div>
       <div class="panel">
-        <div class="srow head"><span class="picon lg" data-provider="claude"></span><div class="stext"><strong>Claude Code</strong><small id="claude-detail"></small></div><label class="switch"><input id="claude-toggle" type="checkbox" aria-label="Watch Claude Code"><span></span></label></div>
-        <div class="srow folder"><div class="stext"><small class="flabel">Configuration folder</small><span id="claude-folder" class="fpath"></span><small id="claude-origin" class="fstate"></small></div><div class="links"><button class="link browse" data-provider="claude">Change…</button><button class="link automatic" data-provider="claude">Use automatic</button></div></div>
-        <div class="srow connect"><div class="stext"><strong>Lifecycle hook</strong><small id="claude-hook-status"></small></div><button id="check-claude" class="link">Test</button><button id="remove-hooks" class="link danger">Disconnect</button><button id="install-hooks" class="button">Connect</button></div>
+        <div class="srow head"><span class="picon lg" data-provider="claude"></span><div class="stext"><strong>Claude Code</strong><small id="claude-detail"></small></div><label class="switch"><input id="claude-toggle" type="checkbox" aria-label="Watch Claude Code" data-i18n-label="sources.watchClaude"><span></span></label></div>
+        <div class="srow folder"><div class="stext"><small class="flabel" data-i18n="sources.configFolder">Configuration folder</small><span id="claude-folder" class="fpath"></span><small id="claude-origin" class="fstate"></small></div><div class="links"><button class="link browse" data-provider="claude" data-i18n="sources.change">Change…</button><button class="link automatic" data-provider="claude" data-i18n="sources.automatic">Use automatic</button></div></div>
+        <div class="srow connect"><div class="stext"><strong data-i18n="sources.hook">Lifecycle hook</strong><small id="claude-hook-status"></small></div><div class="actions"><button id="check-claude" class="link">Test</button><button id="remove-hooks" class="link danger">Disconnect</button><button id="install-hooks" class="button">Connect</button></div></div>
         <div id="claude-check" class="srow check hidden"></div>
       </div>
-      <p class="foot">Connecting adds a small hook to Claude Code’s settings; the file is backed up first and your other hooks are kept. Restart open Claude Code sessions afterwards. Claude’s Chat and Cowork tabs can’t be watched.</p>
+      <p class="foot" data-i18n="sources.foot">Connecting adds a small hook to Claude Code’s settings; the file is backed up first and your other hooks are kept. Restart open Claude Code sessions afterwards. Claude’s Chat and Cowork tabs can’t be watched.</p>
 
-      <div class="block-head"><h2>App windows</h2></div>
+      <div class="block-head"><h2 data-i18n="settings.appWindows">App windows</h2></div>
       <div class="panel" id="windows-panel">
-        <div class="srow head"><div class="stext"><strong>Watch the Claude and Codex apps</strong><small>Counts work shown in their windows — Chat, Cowork and Code, local or cloud — by spotting the Stop button they show while working.</small></div><label class="switch"><input id="windows-toggle" type="checkbox" aria-label="Watch app windows"><span></span></label></div>
-        <div class="srow"><span class="picon" data-provider="claude"></span><div class="stext"><span>Claude app</span><small id="win-claude"></small></div></div>
-        <div class="srow"><span class="picon" data-provider="codex"></span><div class="stext"><span>Codex app</span><small id="win-codex"></small></div></div>
+        <div class="srow head"><div class="stext"><strong data-i18n="windows.title">Watch the Claude and Codex apps</strong><small data-i18n="windows.description">Counts work shown in their windows — Chat, Cowork and Code, local or cloud — by spotting the Stop button they show while working.</small></div><label class="switch"><input id="windows-toggle" type="checkbox" aria-label="Watch app windows" data-i18n-label="windows.label"><span></span></label></div>
+        <div class="srow"><span class="picon" data-provider="claude"></span><div class="stext"><span data-i18n="windows.claudeApp">Claude app</span><small id="win-claude"></small></div></div>
+        <div class="srow"><span class="picon" data-provider="codex"></span><div class="stext"><span data-i18n="windows.codexApp">Codex app</span><small id="win-codex"></small></div></div>
       </div>
-      <p class="foot">Only the window currently open in each app can be seen; work in another chat or task that isn’t on screen is not visible this way.</p>
+      <p class="foot" data-i18n="windows.foot">Only the window currently open in each app can be seen; work in another chat or task that isn’t on screen is not visible this way.</p>
 
-      <div class="block-head"><h2>What’s holding the plan</h2></div>
-      <div class="panel"><div id="observed-work" class="observed"></div></div>
+      <div class="block-head"><h2 data-i18n="settings.holding">What’s holding the plan</h2></div>
+      <div class="panel"><div id="observed-work" class="observed" data-empty="Nothing — the plan can finish whenever you’re ready."></div></div>
 
-      <div class="block-head"><h2>About</h2><span id="version" class="note"></span></div>
+      <div class="block-head"><h2 data-i18n="settings.about">About</h2><span id="version" class="note"></span></div>
       <div class="panel">
-        <div class="srow prose"><p>Quiet AI waits until every chat you watch has finished, waits a little longer to be sure, then gives you a moment to cancel. Anything it can’t verify keeps it waiting.</p><p id="platform-monitor-note" class="muted"></p><p class="muted">Claude Code is checked through lifecycle hooks and its local live-session registry. Old prompts from a closed session leave the list after 10 seconds of repeated complete registry checks, including after an account switch or app restart. Busy sessions, sessions waiting for input, and background work still keep the plan waiting. If the registry can’t be read, Quiet AI waits.</p></div>
-        <div class="srow connect" id="update-row"><div class="stext"><strong>Updates</strong><small id="update-status"></small></div><button id="release-page" class="link hidden">What’s new</button><button id="update-button" class="button">Check for updates</button></div>
-        <div class="srow"><button id="diagnostics" class="link">Copy status summary</button></div>
+        <div class="srow prose"><p data-i18n="about.intro">Quiet AI waits until every chat you watch has finished, waits a little longer to be sure, then gives you a moment to cancel. Anything it can’t verify keeps it waiting.</p><p id="platform-monitor-note" class="muted"></p><p class="muted" data-i18n="about.claudeNote">Claude Code is checked through lifecycle hooks and its local live-session registry. Old prompts from a closed session leave the list after 10 seconds of repeated complete registry checks, including after an account switch or app restart. Busy sessions, sessions waiting for input, and background work still keep the plan waiting. If the registry can’t be read, Quiet AI waits.</p></div>
+        <div class="srow connect" id="update-row"><div class="stext"><strong data-i18n="about.updates">Updates</strong><small id="update-status"></small></div><div class="actions"><button id="release-page" class="link hidden" data-i18n="about.whatsNew">What’s new</button><button id="update-button" class="button">Check for updates</button></div></div>
+        <div class="srow"><button id="diagnostics" class="link" data-i18n="about.copySummary">Copy status summary</button></div>
       </div>
-      <p class="foot">Made by <button id="website" class="link inline">Nikita Shulga</button>. Runs on this computer — no accounts or telemetry; the only network use is checking GitHub for new versions. MIT license. Not affiliated with OpenAI or Anthropic.</p>
+      <p class="foot"><span data-i18n="about.madeBy">Made by</span> <button id="website" class="link inline">Nikita Shulga</button><span data-i18n="about.footer">. Runs on this computer — no accounts or telemetry; the only network use is checking GitHub for new versions. MIT license. Not affiliated with OpenAI or Anthropic.</span></p>
     </div>
   </aside>
+  <script src="i18n.js"></script>
   <script src="renderer.js"></script>
 </body></html>

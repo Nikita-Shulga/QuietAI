@@ -1,5 +1,6 @@
 'use strict';
 const $=id=>document.getElementById(id);
+const i18n=window.QuietI18n,tr=i18n.tr; // shared strings (i18n.js, loaded before this script)
 const ACTIVE=['waiting','idle','countdown','timer','executing'];
 let current=null,dismissed='',openMenu=null,iconKey='';
 
@@ -11,16 +12,17 @@ const icons={
   Lock:'<rect x="3.8" y="7" width="8.4" height="6.2" rx="1.5"/><path d="M5.8 7V5.4a2.2 2.2 0 0 1 4.4 0V7"/>',
   Display:'<rect x="2.5" y="3" width="11" height="7.6" rx="1.4"/><path d="M6 13h4"/>'
 };
-const verbs={Sleep:'sleep',Shutdown:'shut down',Restart:'restart',Hibernate:'hibernate',Lock:'lock',Display:'turn off the display'};
-const progressive={Sleep:'Sleeping',Shutdown:'Shutting down',Restart:'Restarting',Hibernate:'Hibernating',Lock:'Locking',Display:'Display off'};
-const modes={Codex:'After AI finishes',Timer:'On a timer'};
+const MODES=['Codex','Timer'];
+const actionName=a=>tr('action.'+a),progressive=a=>tr('progressive.'+a);
 const choices={awayMinutes:[3,5,10,15,30,60],quietMinutes:[1,5,10,15,30,60],timerMinutes:[5,15,30,60,120,240,480],countdownSeconds:[30,60,120]};
 const checkSvg='<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.4l2.8 2.8 6.2-6.4"/></svg>';
 
-function duration(key,v){
-  if(key==='countdownSeconds')return v%60?v+' seconds':(v===60?'1 minute':v/60+' minutes');
-  if(v<60)return v===1?'1 minute':v+' minutes';
-  const h=v/60;return Number.isInteger(h)?(h===1?'1 hour':h+' hours'):v+' minutes';
+// form: '' (menus), 'Acc' ("in 5 minutes") or 'Gen' ("after 5 minutes"); the same in English.
+function duration(key,v,form=''){
+  const unit=(name,count)=>tr('dur.'+name+form,{count});
+  if(key==='countdownSeconds')return v%60?unit('seconds',v):unit('minutes',v/60);
+  if(v<60)return unit('minutes',v);
+  const h=v/60;return Number.isInteger(h)?unit('hours',h):unit('minutes',v);
 }
 function short(key,v){
   if(key==='countdownSeconds')return v%60?v+' sec':v/60+' min';
@@ -38,12 +40,14 @@ function showNotice(v,isError=false){
   noticeShown=v;n.classList.remove('hidden');n.classList.toggle('error',isError);text('notice-text',v);
   clearTimeout(noticeTimer);noticeTimer=setTimeout(()=>{n.classList.add('hidden');},isError?9000:4500);
 }
-function plural(n,one,many){return n+' '+(n===1?one:many);}
+function plural(key,count){return tr(key,{count});}
 function clock(sec){sec=Math.max(0,Math.ceil(sec));const h=Math.floor(sec/3600),m=Math.floor(sec%3600/60),s=sec%60;return h?h+':'+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0'):m+':'+String(s).padStart(2,'0');}
-function since(iso){const t=Date.parse(iso);if(!Number.isFinite(t)||t<946684800000)return '';const m=Math.floor((Date.now()-t)/60000);if(m<1)return 'just now';if(m<60)return m+' min';return Math.floor(m/60)+' hr '+(m%60)+' min';}
+function since(iso){const t=Date.parse(iso);if(!Number.isFinite(t)||t<946684800000)return '';const m=Math.floor((Date.now()-t)/60000);if(m<1)return tr('time.justNow');if(m<60)return tr('time.minutes',{minutes:m});return tr('time.hoursMinutes',{hours:Math.floor(m/60),minutes:m%60});}
+// Where a folder was found: environment variable names stay as they are.
+function origin(name){return name==='Application support'?tr('origin.appSupport'):name==='Your selected folder'?tr('origin.selected'):name;}
 function settingsOpen(){return document.body.classList.contains('settings-open');}
 function openSettings(open){closeMenu();document.body.classList.toggle('settings-open',open);$('settings').setAttribute('aria-hidden',String(!open));$('open-settings').classList.toggle('on',open);if(open)requestAnimationFrame(placeThumb);}
-function placeThumb(){const seg=$('theme-seg'),b=seg.querySelector('[aria-pressed="true"]'),t=seg.querySelector('.seg-thumb');if(!b||!b.offsetWidth)return;t.style.width=b.offsetWidth+'px';t.style.transform='translateX('+b.offsetLeft+'px)';}
+function placeThumb(){for(const seg of document.querySelectorAll('.seg')){const b=seg.querySelector('[aria-pressed="true"]'),t=seg.querySelector('.seg-thumb');if(!b||!b.offsetWidth)continue;t.style.width=b.offsetWidth+'px';t.style.transform='translateX('+b.offsetLeft+'px)';}}
 window.addEventListener('resize',placeThumb);
 
 // Headline built from [text, class] parts so a time can be highlighted.
@@ -67,6 +71,23 @@ function fillIcon(node,provider){
   if(src){const img=document.createElement('img');img.src=src;img.alt='';img.draggable=false;node.append(img);}
   else node.textContent=provider==='codex'?'Cx':'Cl';
   node.title=provider==='codex'?'Codex':'Claude Code';
+}
+
+// ——— Language ———
+// Static text carries data-i18n (text), data-i18n-label (aria-label) and data-i18n-title (title);
+// the English text stays in index.html. Switching re-renders everything without a restart.
+let language='';
+function applyLanguage(lang){
+  lang=i18n.normalize(lang);if(lang===language)return;
+  language=i18n.setLanguage(lang);document.documentElement.lang=lang;
+  for(const n of document.querySelectorAll('[data-i18n]'))n.textContent=tr(n.dataset.i18n);
+  for(const n of document.querySelectorAll('[data-i18n-label]'))n.setAttribute('aria-label',tr(n.dataset.i18nLabel));
+  for(const n of document.querySelectorAll('[data-i18n-title]'))n.title=tr(n.dataset.i18nTitle);
+  $('observed-work').dataset.empty=tr('holding.empty');
+  // Forget what was drawn so every cached part is rebuilt in the new language.
+  for(const n of document.querySelectorAll('[data-key]'))n.dataset.key='';
+  $('claude-check').dataset.at='';
+  requestAnimationFrame(placeThumb);
 }
 
 // ——— Signal strip ———
@@ -111,8 +132,8 @@ requestAnimationFrame(drawSignal);
 // ——— Menus ———
 function menuItems(name){
   const s=current.settings;
-  if(name==='scheduleMode')return Object.entries(modes).map(([v,l])=>({value:v,label:l,selected:s.scheduleMode===v}));
-  if(name==='action')return current.actions.map(a=>({value:a,label:current.actionNames[a],icon:icons[a],selected:a===s.action}));
+  if(name==='scheduleMode')return MODES.map(v=>({value:v,label:tr('mode.'+v),selected:s.scheduleMode===v}));
+  if(name==='action')return current.actions.map(a=>({value:a,label:actionName(a),icon:icons[a],selected:a===s.action}));
   const list=[...choices[name]];if(!list.includes(s[name]))list.push(s[name]);list.sort((a,b)=>a-b);
   return list.map(v=>({value:v,label:duration(name,v),selected:v===s[name]}));
 }
@@ -139,6 +160,7 @@ function showMenu(button){
 // ——— Render ———
 function render(state){
   current=state;
+  applyLanguage(state.settings?.language);
   const mode=state.dark===false?'light':'dark';
   if(document.documentElement.dataset.mode!==mode){document.documentElement.dataset.mode=mode;palette=null;iconKey='';const l=document.getElementById('chat-list');if(l)l.dataset.key='';}
   const {settings,snapshot,plan}=state;
@@ -151,34 +173,37 @@ function render(state){
   const count=snapshot?.chatCount||0,background=snapshot?.backgroundRunning||0;
   const uncertain=(snapshot?.uncertain||0)+(state.error&&snapshot?1:0);
   const unconnected=['codex','claude'].filter(n=>settings[n+'Enabled']&&snapshot&&!snapshot[n]?.connected);
-  const chats=plural(count,'chat','chats');
+  const chats=plural('count.chats',count);
   const amp=Math.min(1,.5+.13*Math.max(count,background?1:0));
-  const planLine=timerMode?`${state.actionNames[action]} in ${duration('timerMinutes',settings.timerMinutes)}`:`Then ${verbs[action]} after ${duration('quietMinutes',settings.quietMinutes)} of quiet`;
+  const planLine=timerMode?tr('plan.timerLine',{action:actionName(action),duration:duration('timerMinutes',settings.timerMinutes,'Acc')}):tr('plan.quietLine',{action:tr('actionPhrase.'+action),duration:duration('quietMinutes',settings.quietMinutes,'Gen')});
+  const away=duration('awayMinutes',settings.awayMinutes||10,'Gen');
+  const countingDown=()=>[[tr('headline.countdown',{action:progressive(action)})+' ']];
+  const waitingForYou=[[tr('headline.waitingForYou')+' '],[tr('headline.toStepAway'),'dim']];
 
-  let tone='preview',badge='Preview',parts,summary;
+  let tone='preview',badge=tr('badge.preview'),parts,summary;
   switch(plan.phase){
-    case 'countdown':tone='countdown';badge='Final countdown';parts=[[progressive[action]+' in '],[remaining,'amber']];summary=settings.waitForAway!==false?'Everything finished. Move the mouse or press Esc to stay awake.':'Everything finished. Press Esc to stay awake.';setSignal('countdown',0,1-done);break;
-    case 'timer':if(plan.present){tone='confirm';badge='Timer';parts=[['Waiting for you '],['to step away','dim']];summary=`Time’s up — countdown after ${duration('awayMinutes',settings.awayMinutes||10)} without input.`;setSignal('quiet');break;}
-      tone='timer';badge='Timer';parts=[[progressive[action]+' in '],[remaining]];summary='Runs on the clock, whatever your AI is doing.';setSignal('timer',0,1-done);break;
-    case 'idle':if(plan.present){tone='confirm';badge='Confirming';parts=[['Waiting for you '],['to step away','dim']];summary=`AI is done — countdown after ${duration('awayMinutes',settings.awayMinutes||10)} without input.`;setSignal('quiet');break;}
-      tone='confirm';badge='Confirming';parts=[['All quiet '],['· '+remaining,'dim']];summary='Making sure nothing starts again.';setSignal('progress',0,done);break;
-    case 'executing':tone='executing';badge='Now';parts=[[progressive[action]+'…']];summary='Good night.';setSignal('quiet');break;
+    case 'countdown':tone='countdown';badge=tr('badge.countdown');parts=[...countingDown(),[remaining,'amber']];summary=tr(settings.waitForAway!==false?'summary.countdownAway':'summary.countdown');setSignal('countdown',0,1-done);break;
+    case 'timer':if(plan.present){tone='confirm';badge=tr('badge.timer');parts=waitingForYou;summary=tr('summary.timerPresent',{duration:away});setSignal('quiet');break;}
+      tone='timer';badge=tr('badge.timer');parts=[...countingDown(),[remaining]];summary=tr('summary.timer');setSignal('timer',0,1-done);break;
+    case 'idle':if(plan.present){tone='confirm';badge=tr('badge.confirming');parts=waitingForYou;summary=tr('summary.idlePresent',{duration:away});setSignal('quiet');break;}
+      tone='confirm';badge=tr('badge.confirming');parts=[[tr('headline.allQuiet')+' '],['· '+remaining,'dim']];summary=tr('summary.idle');setSignal('progress',0,done);break;
+    case 'executing':tone='executing';badge=tr('badge.now');parts=[[progressive(action)+'…']];summary=tr('summary.executing');setSignal('quiet');break;
     case 'waiting':
-      tone='armed';badge='Armed';
-      if(count||background){parts=[[count?chats+' ':'Background work '],[count?'running':'running','dim']];setSignal('working',amp);}
-      else{parts=[['Waiting '],['for verification','dim']];setSignal('quiet');}
-      summary=unconnected.length||uncertain?'Something can’t be verified yet. See below.':planLine+'.';break;
+      tone='armed';badge=tr('badge.armed');
+      if(count||background){parts=count?[[chats+' '],[tr('headline.running'),'dim']]:[[tr('headline.background')+' '],[tr('headline.backgroundRunning'),'dim']];setSignal('working',amp);}
+      else{parts=[[tr('headline.waiting')+' '],[tr('headline.forVerification'),'dim']];setSignal('quiet');}
+      summary=unconnected.length||uncertain?tr('summary.unverified'):planLine+'.';break;
     default:
       summary=planLine+'.';
-      if(!snapshot){parts=[['Looking for your AI…']];summary='One moment.';setSignal('loading',.3);}
-      else if(plan.phase==='completed'){badge='Done';parts=[['Done']];summary=state.actionNames[action]+' was requested.';setSignal('quiet');}
-      else if(plan.phase==='error'){tone='error';badge='Error';parts=[['That didn’t work']];summary='The system refused the request.';setSignal('quiet');}
-      else if(count){parts=[[chats+' '],['running','dim']];setSignal('working',amp);}
-      else if(background){parts=[[plural(background,'task','tasks')+' '],['in background','dim']];setSignal('working',.55);}
-      else if(unconnected.includes('claude')){tone='attention';parts=[['Claude Code '],['not connected','dim']];summary='Connect it in Settings, or switch it off.';setSignal('quiet');}
-      else if(unconnected.length){tone='attention';parts=[['Codex '],['can’t be read','dim']];summary='Check its folder in Settings.';setSignal('quiet');}
-      else if(uncertain){tone='attention';parts=[[plural(uncertain,'item','items')+' '],['unverified','dim']];setSignal('quiet');}
-      else{parts=[['All quiet']];setSignal('quiet');}
+      if(!snapshot){parts=[[tr('headline.looking')]];summary=tr('summary.oneMoment');setSignal('loading',.3);}
+      else if(plan.phase==='completed'){badge=tr('badge.done');parts=[[tr('headline.done')]];summary=tr('summary.requested',{action:actionName(action)});setSignal('quiet');}
+      else if(plan.phase==='error'){tone='error';badge=tr('badge.error');parts=[[tr('headline.failed')]];summary=tr('summary.refused');setSignal('quiet');}
+      else if(count){parts=[[chats+' '],[tr('headline.running'),'dim']];setSignal('working',amp);}
+      else if(background){parts=[[plural('count.tasks',background)+' '],[tr('headline.inBackground'),'dim']];setSignal('working',.55);}
+      else if(unconnected.includes('claude')){tone='attention';parts=[['Claude Code '],[tr('headline.notConnected'),'dim']];summary=tr('summary.connectClaude');setSignal('quiet');}
+      else if(unconnected.length){tone='attention';parts=[['Codex '],[tr('headline.cantBeRead'),'dim']];summary=tr('summary.checkFolder');setSignal('quiet');}
+      else if(uncertain){tone='attention';parts=[[plural('count.items',uncertain)+' '],[tr('headline.unverified',{count:uncertain}),'dim']];setSignal('quiet');}
+      else{parts=[[tr('headline.allQuiet')]];setSignal('quiet');}
   }
   $('hero').dataset.tone=tone;text('badge-text',badge);headline(parts);text('summary',summary);
 
@@ -186,31 +211,32 @@ function render(state){
   for(const name of ['codex','claude']){
     const on=!!settings[name+'Enabled'],p=snapshot?.[name],chip=document.querySelector(`.provider .picon[data-provider="${name}"]`).parentElement;
     chip.classList.toggle('off',!on);chip.classList.toggle('warn',on&&!!p&&!p.connected);
-    text(name+'-count',!on?'Off':p?.connected?String(p.chatCount):p?'!':'·');
+    text(name+'-count',!on?tr('chip.off'):p?.connected?String(p.chatCount):p?'!':'·');
     const label=name==='codex'?'Codex':'Claude Code';
-    chip.title=!on?label+' · not watched (switch it on in Settings)':!p?label+' · checking…':!p.connected?label+' · not connected — see Settings':label+' · '+plural(p.chatCount,'chat','chats')+' running';chip.setAttribute('aria-label',chip.title);
+    chip.title=!on?tr('chip.notWatched',{name:label}):!p?tr('chip.checking',{name:label}):!p.connected?tr('chip.notConnected',{name:label}):tr('chip.running',{name:label,chats:plural('count.chatsRunning',p.chatCount)});chip.setAttribute('aria-label',chip.title);
   }
 
   // Running list
-  const notes=[];if(background&&count)notes.push(plural(background,'background task','background tasks'));if(uncertain)notes.push(uncertain+' unverified');
+  const notes=[];if(background&&count)notes.push(plural('note.background',background));if(uncertain)notes.push(tr('note.unverified',{count:uncertain}));
   text('running-note',notes.join(' · '));
   let banner='';
-  if(unconnected.includes('claude'))banner='Claude Code isn’t connected';
-  else if(unconnected.includes('codex'))banner='Codex can’t be read';
-  else if(uncertain)banner=plural(uncertain,'item needs','items need')+' a look';
+  if(unconnected.includes('claude'))banner=tr('banner.claude');
+  else if(unconnected.includes('codex'))banner=tr('banner.codex');
+  else if(uncertain)banner=plural('banner.items',uncertain);
   $('banner').classList.toggle('hidden',!banner);text('banner-text',banner);
-  $('banner').querySelector('.banner-cta').firstChild.textContent=unconnected.length?'Set up':'Review';
+  text('banner-cta-text',tr(unconnected.length?'banner.setUp':'banner.review'));
   const list=$('chat-list'),items=snapshot?.chats||[];
-  const key=JSON.stringify([items.map(c=>[c.provider,c.session,c.title]),!!snapshot,iconKey]);
+  const key=JSON.stringify([items.map(c=>[c.provider,c.session,c.title]),!!snapshot,iconKey,language]);
   if(list.dataset.key!==key){
     list.dataset.key=key;list.replaceChildren();
     for(const chat of items){
       const li=document.createElement('li');const provider=chat.provider==='Claude'?'claude':'codex';
       const icon=document.createElement('span');icon.className='picon';fillIcon(icon,provider);
-      const t=document.createElement('span');t.className='title';t.textContent=chat.title;t.title=chat.title;
+      const title=i18n.chatTitle(chat.title);
+      const t=document.createElement('span');t.className='title';t.textContent=title;t.title=title;
       const s=document.createElement('span');s.className='time';s.dataset.since=chat.startedUtc||'';
       const live=document.createElement('i');live.className='live';
-      const actions=document.createElement('button');actions.className='chat-actions';actions.type='button';actions.textContent='⋯';actions.setAttribute('aria-label','Actions for '+chat.title);actions.setAttribute('aria-haspopup','menu');
+      const actions=document.createElement('button');actions.className='chat-actions';actions.type='button';actions.textContent='⋯';actions.setAttribute('aria-label',tr('list.actionsFor',{title}));actions.setAttribute('aria-haspopup','menu');
       const openMenu=()=>{const selected=current?.snapshot?.chats?.find(c=>c.provider===chat.provider&&c.session===chat.session);if(selected)command('chatMenu',{provider:selected.provider,session:selected.session,token:selected.dismissToken||''});};
       actions.addEventListener('click',openMenu);
       li.addEventListener('contextmenu',e=>{e.preventDefault();openMenu();});
@@ -219,15 +245,15 @@ function render(state){
     }
     if(!items.length){
       const li=document.createElement('li');li.className='empty';
-      const strong=document.createElement('strong');strong.textContent=snapshot?'Nothing running':'Looking…';
-      const small=document.createElement('span');small.textContent=snapshot?'Chats appear here while Codex or Claude Code work.':'';
+      const strong=document.createElement('strong');strong.textContent=tr(snapshot?'list.nothing':'list.looking');
+      const small=document.createElement('span');small.textContent=snapshot?tr('list.emptyHint'):'';
       li.append(strong,small);list.append(li);
     }
   }
   for(const n of list.querySelectorAll('.time'))n.textContent=since(n.dataset.since);
   const dismissed=state.dismissed?.count||0;
   $('dismissed-work').classList.toggle('hidden',!dismissed);
-  text('dismissed-count',plural(dismissed,'entry dismissed','entries dismissed')+' · No longer blocking AI plans');
+  text('dismissed-count',plural('dismissed.count',dismissed));
   $('restore-dismissed').disabled=!!state.dismissed?.reviewing;
 
   // Plan
@@ -235,10 +261,10 @@ function render(state){
   $('idle-row').classList.toggle('hidden',timerMode);$('timer-row').classList.toggle('hidden',!timerMode);
   for(const b of document.querySelectorAll('.select')){
     const name=b.dataset.menu,v=b.querySelector('.select-value');
-    const k=name==='scheduleMode'?settings.scheduleMode:name==='action'?action:String(settings[name]);
+    const k=(name==='scheduleMode'?settings.scheduleMode:name==='action'?action:String(settings[name]))+'/'+language;
     if(v.dataset.key===k)continue;v.dataset.key=k;v.replaceChildren();
-    if(name==='action'){v.insertAdjacentHTML('beforeend','<svg viewBox="0 0 16 16" aria-hidden="true">'+icons[action]+'</svg>');v.append(state.actionNames[action]);}
-    else v.append(name==='scheduleMode'?modes[settings.scheduleMode]:duration(name,settings[name]));
+    if(name==='action'){v.insertAdjacentHTML('beforeend','<svg viewBox="0 0 16 16" aria-hidden="true">'+icons[action]+'</svg>');v.append(actionName(action));}
+    else v.append(name==='scheduleMode'?tr('mode.'+settings.scheduleMode):duration(name,settings[name]));
   }
   if(active)closeMenu();
 
@@ -246,82 +272,84 @@ function render(state){
   const cta=$('arm');
   cta.className='cta'+(plan.phase==='countdown'?' cancel':active?' secondary':'');
   cta.disabled=plan.phase==='executing';
-  text('cta-text',plan.phase==='countdown'?'Cancel':plan.phase==='executing'?progressive[action]+'…':active?'Stop':timerMode?'Start timer':'Start monitoring');
+  text('cta-text',plan.phase==='countdown'?tr('cta.cancel'):plan.phase==='executing'?progressive(action)+'…':tr(active?'cta.stop':timerMode?'cta.startTimer':'cta.start'));
   text('cta-key',active?'Esc':'↵');$('cta-key').classList.toggle('hidden',plan.phase==='executing');
 
   // Settings
   for(const name of ['codex','claude']){
     const on=!!settings[name+'Enabled'],p=snapshot?.[name],src=state.sources[name];
     let d;
-    if(!on)d=src.detected?'Found on this computer · not watched':'Not found on this computer';
-    else if(!p)d='Checking…';
-    else if(!p.connected)d=name==='claude'?'Not connected yet':(p.detail||'Can’t be read');
-    else d=(p.viaWindowOnly?'Watching the app window · ':'Connected · ')+plural(p.chatCount,'chat','chats')+' running';
+    if(!on)d=tr(src.detected?'source.foundNotWatched':'source.notFound');
+    else if(!p)d=tr('source.checking');
+    else if(!p.connected)d=name==='claude'?tr('source.notConnectedYet'):(i18n.monitorText(p.detail)||tr('source.cantBeRead'));
+    else d=tr(p.viaWindowOnly?'source.viaWindow':'source.connected',{chats:plural('count.chatsRunning',p.chatCount)});
     text(name+'-detail',d);
     $(name+'-toggle').checked=on;$(name+'-toggle').disabled=active;
     const manual=!!settings[name==='codex'?'codexSessionsOverride':'claudeHomeOverride'];
     text(name+'-folder',src.folder||'—');
     const st=$(name+'-origin');st.className='fstate '+(src.exists?'ok':'missing');
-    text(name+'-origin',manual?(src.exists?'Chosen by you':'Chosen by you · folder not found'):src.exists?'Found automatically'+(src.origin&&src.origin!=='User profile'?' · '+src.origin:''):(name==='claude'&&src.appInstalled?'Will be created when Claude Code is connected':'Not found yet'));
+    text(name+'-origin',manual?tr(src.exists?'folder.chosen':'folder.chosenMissing'):src.exists?(src.origin&&src.origin!=='User profile'?tr('folder.foundVia',{origin:origin(src.origin)}):tr('folder.found')):tr(name==='claude'&&src.appInstalled?'folder.willBeCreated':'folder.notFoundYet'));
     document.querySelector('.automatic[data-provider="'+name+'"]').classList.toggle('hidden',!manual);
   }
   const c=snapshot?.claude,hookReady=!!c?.connected&&!c?.viaWindowOnly,installing=state.operation==='install',removing=state.operation==='remove';
-  text('install-hooks',installing?'Connecting…':hookReady?'Reconnect':'Connect');
+  text('install-hooks',tr(installing?'hook.connecting':hookReady?'hook.reconnect':'sources.connect'));
   $('install-hooks').classList.toggle('working',installing);
-  $('remove-hooks').classList.toggle('hidden',!hookReady&&!removing);text('remove-hooks',removing?'Disconnecting…':'Disconnect');
-  text('claude-hook-status',installing?'Installing the hook…':!settings.claudeEnabled?'Off — switch Claude Code on to connect':c?.viaWindowOnly&&!installing?'Optional — for terminal sessions; the Claude app window is already watched':c?.awaitingFirstEvent?'Connected · no sessions yet':hookReady?'Connected · receiving events':'Not connected');
+  $('remove-hooks').classList.toggle('hidden',!hookReady&&!removing);text('remove-hooks',tr(removing?'hook.disconnecting':'sources.disconnect'));
+  text('claude-hook-status',tr(installing?'hook.installing':!settings.claudeEnabled?'hook.off':c?.viaWindowOnly&&!installing?'hook.optional':c?.awaitingFirstEvent?'hook.noSessions':hookReady?'hook.receiving':'hook.notConnected'));
   for(const n of document.querySelectorAll('.browse,.automatic,#discover,#install-hooks,#remove-hooks,#check-claude'))n.disabled=active||!!state.operation;
-  text('check-claude',state.operation==='check'?'Testing…':'Test');
+  text('check-claude',tr(state.operation==='check'?'hook.testing':'sources.test'));
   $('check-claude').classList.toggle('hidden',!settings.claudeEnabled);
   const ck=state.claudeCheck,box=$('claude-check');
   box.classList.toggle('hidden',!ck);
   if(ck&&box.dataset.at!==String(ck.at)){
     box.dataset.at=String(ck.at);box.replaceChildren();
     const line=(label,good,detail)=>{const p=document.createElement('div');const s=document.createElement('span');s.className=good?'ok':'bad';s.textContent=(good?'✓ ':'✕ ')+label;p.append(s);if(detail){p.append(' — ');const c=document.createElement('code');c.textContent=detail;p.append(c);}box.append(p);};
-    const head=document.createElement('strong');head.textContent=ck.ok?'Hook works':'Hook problem found';box.append(head);
-    line('Hook in Claude Code settings',ck.found,ck.settingsFile);
-    if(ck.found)line('Hooks allowed',!ck.disabled);
-    if(ck.ran)line('Hook records events',ck.ok);
+    const head=document.createElement('strong');head.textContent=tr(ck.ok?'check.works':'check.problem');box.append(head);
+    line(tr('check.inSettings'),ck.found,ck.settingsFile);
+    if(ck.found)line(tr('check.allowed'),!ck.disabled);
+    if(ck.ran)line(tr('check.records'),ck.ok);
     const note=document.createElement('div');
-    note.textContent=ck.ok?'If a prompt still isn’t tracked: start a new Claude Code session after connecting (sessions opened earlier never load the hook), and make sure it runs on this computer — cloud sessions and Claude’s Chat/Cowork tabs can’t be seen.':ck.problem;
+    note.textContent=ck.ok?tr('check.okNote'):ck.problemKey&&i18n.has(ck.problemKey)?tr(ck.problemKey,ck.problemParams):ck.problem;
     box.append(note);
   }
   const W=state.windows||{};
   $('tray-toggle').checked=settings.minimizeToTray!==false;
   const mac=state.platform==='darwin';
-  text('tray-label',mac?'Minimize to menu bar':'Minimize to tray');
-  text('tray-description',mac?'Minimizing or closing keeps Quiet AI in the menu bar. Choose Open Quiet AI from its icon, or reopen it from the Dock. Use Quit to stop the app.':'Minimizing hides Quiet AI to the notification area. Hover its icon for the status; click it to open.');
-  $('tray-toggle').setAttribute('aria-label',mac?'Minimize to menu bar':'Minimize to tray');
-  $('away-toggle').checked=settings.waitForAway!==false;$('away-toggle').disabled=active;$('away-detail').textContent=`Only act after ${duration('awayMinutes',settings.awayMinutes||10)} with no mouse or keyboard use. Using the computer during the final countdown cancels it. The countdown appears on top of everything, on every screen.`;$('away-row').classList.toggle('hidden',settings.waitForAway===false);$('away-row').querySelector('.select').disabled=active;
+  text('tray-label',tr(mac?'tray.labelMac':'tray.label'));
+  text('tray-description',tr(mac?'tray.descriptionMac':'tray.description'));
+  $('tray-toggle').setAttribute('aria-label',tr(mac?'tray.labelMac':'tray.label'));
+  $('away-toggle').checked=settings.waitForAway!==false;$('away-toggle').disabled=active;text('away-detail',tr('away.detail',{duration:duration('awayMinutes',settings.awayMinutes||10,'Acc')}));$('away-row').classList.toggle('hidden',settings.waitForAway===false);$('away-row').querySelector('.select').disabled=active;
   $('windows-toggle').checked=settings.watchWindows!==false;$('windows-toggle').disabled=active||!W.supported;
   for(const k of ['claude','codex']){
     const w=W[k];let t;
-    if(!W.supported)t='Available on Windows';
-    else if(settings.watchWindows===false)t='Off';
-    else if(W.error)t=W.error;
-    else if(!W.fresh)t='Starting…';
-    else if(!w||!w.windows)t='App not open';
-    else if(w.busy){const bits=[];if(w.stops.length)bits.push('“'+w.stops[0]+'”');if(w.running.length)bits.push(plural(w.running.length,'running chat','running chats'));else if(w.working)bits.push(plural(w.working,'busy marker','busy markers'));for(const tab of w.tabs||[])bits.push(tab+' working');t='Working — sees '+bits.join(', ');}
-    else t='Open · idle';    text('win-'+k,t);
+    if(!W.supported)t=tr('win.availableOnWindows');
+    else if(settings.watchWindows===false)t=tr('win.off');
+    else if(W.error)t=i18n.monitorText(W.error);
+    else if(!W.fresh)t=tr('win.starting');
+    else if(!w||!w.windows)t=tr('win.notOpen');
+    else if(w.busy){const bits=[];if(w.stops.length)bits.push(tr('win.quoted',{text:w.stops[0]}));if(w.running.length)bits.push(plural('win.runningChats',w.running.length));else if(w.working)bits.push(plural('win.busyMarkers',w.working));for(const tab of w.tabs||[])bits.push(tr('win.tabWorking',{tab}));t=tr('win.working',{what:bits.join(', ')});}
+    else t=tr('win.idle');
+    text('win-'+k,t);
   }
-  text('version','Version '+(state.version||''));
-  const up=state.update||{},ub=$('update-button');let us,ul='Check for updates',ud=false;
-  if(!up.configured){us='Not available in this build.';ud=true;}
-  else if(up.phase==='checking'){us='Checking GitHub…';ud=true;}
-  else if(up.phase==='downloading'){us='Downloading '+up.latest+'… '+Math.round((up.progress||0)*100)+'%';ul='Updating…';ud=true;}
-  else if(up.phase==='installing'){us='Restarting to finish the update…';ul='Updating…';ud=true;}
-  else if(up.available){us='Version '+up.latest+' is available. Quiet AI restarts to install it.';ul='Update now';ud=ACTIVE.includes(state.plan.phase);}
+  text('version',tr('about.version',{version:state.version||''}));
+  const up=state.update||{},ub=$('update-button');let us,ul=tr('update.check'),ud=false;
+  if(!up.configured){us=tr('update.notAvailable');ud=true;}
+  else if(up.phase==='checking'){us=tr('update.checking');ud=true;}
+  else if(up.phase==='downloading'){us=tr('update.downloading',{version:up.latest,progress:tr('update.percent',{percent:Math.round((up.progress||0)*100)})});ul=tr('update.updating');ud=true;}
+  else if(up.phase==='installing'){us=tr('update.restarting');ul=tr('update.updating');ud=true;}
+  else if(up.available){us=tr('update.available',{version:up.latest});ul=tr('update.now');ud=ACTIVE.includes(state.plan.phase);}
   else if(up.error)us=up.error;
-  else us=up.latest?'You have the latest version.':'Checks GitHub for new versions.';
+  else us=tr(up.latest?'update.latest':'update.checksGithub');
   text('update-status',us);if(ub.textContent!==ul)ub.textContent=ul;ub.disabled=ud;
   $('release-page').classList.toggle('hidden',!up.available);
   const theme=['system','light','dark'].includes(settings.theme)?settings.theme:'system';
-  $('theme-seg').dataset.value=theme;for(const b of document.querySelectorAll('#theme-seg [data-theme]'))b.setAttribute('aria-pressed',String(b.dataset.theme===theme));placeThumb();
-  text('platform-monitor-note',state.platform==='darwin'?'Codex activity comes from its live session locks; chat names from its local database.':'Codex activity comes from its live session locks, read without touching them; chat names from its local database.');
+  $('theme-seg').dataset.value=theme;for(const b of document.querySelectorAll('#theme-seg [data-theme]'))b.setAttribute('aria-pressed',String(b.dataset.theme===theme));
+  $('language-seg').dataset.value=language;for(const b of document.querySelectorAll('#language-seg [data-language]'))b.setAttribute('aria-pressed',String(b.dataset.language===language));placeThumb();
+  text('platform-monitor-note',tr(state.platform==='darwin'?'about.codexNoteMac':'about.codexNote'));
   const work=$('observed-work'),wk=JSON.stringify(snapshot?.work||[]);
   if(work.dataset.key!==wk){
     work.dataset.key=wk;work.replaceChildren();
-    for(const item of snapshot?.work||[]){const row=document.createElement('div');row.className='observed-item';const s=document.createElement('strong');s.textContent=item.provider+' · '+item.label;const r=document.createElement('span');r.textContent=String(item.reason||'').replace(/\bin (Sources|Connections)\b/g,'in Settings');row.append(s,r);work.append(row);}
+    for(const item of snapshot?.work||[]){const row=document.createElement('div');row.className='observed-item';const s=document.createElement('strong');s.textContent=item.provider+' · '+i18n.monitorText(String(item.label||''));const r=document.createElement('span');r.textContent=i18n.monitorText(String(item.reason||'')).replace(/\bin (Sources|Connections)\b/g,'in Settings');row.append(s,r);work.append(row);}
   }
   showNotice(state.error||state.message,!!state.error);
 }
@@ -362,6 +390,7 @@ $('open-settings').addEventListener('click',()=>openSettings(!settingsOpen()));
 document.querySelectorAll('[data-open-settings]').forEach(b=>b.addEventListener('click',()=>openSettings(true)));
 $('close-settings').addEventListener('click',()=>openSettings(false));
 document.querySelectorAll('#theme-seg [data-theme]').forEach(b=>b.addEventListener('click',()=>{if(current?.settings.theme!==b.dataset.theme)command('theme',{theme:b.dataset.theme});}));
+document.querySelectorAll('#language-seg [data-language]').forEach(b=>b.addEventListener('click',()=>{if(language!==b.dataset.language)command('language',{language:b.dataset.language});}));
 window.quiet.subscribe(render);command('state');
 
 $('restore-dismissed').addEventListener('click',()=>command('restoreDismissed'));
